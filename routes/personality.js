@@ -1,23 +1,29 @@
 const express = require("express");
 const router = express.Router();
 const { Pool } = require("pg");
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai"); // v4 SDK
 const { Pinecone } = require("@pinecone-database/pinecone");
 const { v4: uuidv4 } = require("uuid");
 require("dotenv").config();
 
+// PostgreSQL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
 
-const configuration = new Configuration({
+// OpenAI v4
+const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
-const openai = new OpenAIApi(configuration);
 
-const pinecone = new Pinecone();
-const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME);
+// Pinecone
+const pinecone = new Pinecone({
+    apiKey: process.env.PINECONE_API_KEY,
+    environment: process.env.PINECONE_ENVIRONMENT // e.g. "us-east-1-aws"
+});
+
+const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
 
 router.post("/submit-responses", async (req, res) => {
     const { user_id, responses } = req.body;
@@ -29,9 +35,9 @@ router.post("/submit-responses", async (req, res) => {
     try {
         // 1. 保存到 PostgreSQL
         const insertQuery = `
-      INSERT INTO questionnaire_responses (user_id, question_id, response)
-      VALUES ($1, $2, $3)
-    `;
+            INSERT INTO questionnaire_responses (user_id, question_id, response)
+            VALUES ($1, $2, $3)
+        `;
         for (const item of responses) {
             await pool.query(insertQuery, [user_id, item.questionId, item.response]);
         }
@@ -39,17 +45,18 @@ router.post("/submit-responses", async (req, res) => {
         // 2. 拼接所有回答
         const combinedText = responses.map(r => r.response).join(" ");
 
-        // 3. 调用 OpenAI 生成 embedding
-        const embeddingResponse = await openai.createEmbedding({
-            model: "text-embedding-ada-002",
+        // 3. 调用 OpenAI v4 生成 embedding
+        const embeddingResponse = await openai.embeddings.create({
+            model: "text-embedding-3-small", // 推荐使用新版
             input: combinedText
         });
-        const [{ embedding }] = embeddingResponse.data.data;
+
+        const embedding = embeddingResponse.data[0].embedding;
 
         // 4. 存入 Pinecone
         await pineconeIndex.upsert([
             {
-                id: uuidv4(), // 或者用 user_id.toString()
+                id: uuidv4(),
                 values: embedding,
                 metadata: {
                     user_id: user_id.toString(),
