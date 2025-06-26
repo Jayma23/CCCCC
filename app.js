@@ -15,7 +15,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/api/personality', require('./routes/personality'));
+app.use('/personality', require('./routes/personality'));
+
 app.use('/auth', authRouter);
 
 module.exports = app;
