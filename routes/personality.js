@@ -1,7 +1,5 @@
-const express = require("express");
-const router = express.Router();
+const OpenAI = require("openai");
 const { Pool } = require("pg");
-const OpenAI = require("openai"); // v4 SDK
 const { Pinecone } = require("@pinecone-database/pinecone");
 const { v4: uuidv4 } = require("uuid");
 require("dotenv").config();
@@ -12,7 +10,7 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// OpenAI v4
+// OpenAI
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
@@ -20,7 +18,7 @@ const openai = new OpenAI({
 // Pinecone
 const pinecone = new Pinecone({
     apiKey: process.env.PINECONE_API_KEY,
-    environment: process.env.PINECONE_ENVIRONMENT // e.g. "us-east-1-aws"
+    environment: process.env.PINECONE_ENVIRONMENT
 });
 
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
