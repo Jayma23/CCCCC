@@ -19,3 +19,4 @@ app.use('/personality', require('./routes/personality'));
 
 app.use('/auth', authRouter);
 
+module.exports = app;
