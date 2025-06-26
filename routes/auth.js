@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
-const { Configuration, OpenAIApi } = require('openai');
+//const { Configuration, OpenAIApi } = require('openai');
 
 const router = express.Router();
 
@@ -14,9 +14,9 @@ const pool = new Pool({
 const SECRET = process.env.JWT_SECRET;
 
 // 初始化 OpenAI
-const openai = new OpenAIApi(new Configuration({
-    apiKey: process.env.OPENAI_API_KEY
-}));
+//const openai = new OpenAIApi(new Configuration({
+    //apiKey: process.env.OPENAI_API_KEY
+//}));
 
 // 注册用户
 router.post('/register', async (req, res) => {
