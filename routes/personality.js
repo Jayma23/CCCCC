@@ -3,6 +3,9 @@ const { Pool } = require("pg");
 const { Pinecone } = require("@pinecone-database/pinecone");
 const { v4: uuidv4 } = require("uuid");
 require("dotenv").config();
+const express = require("express");
+const router = express.Router();
+
 
 // PostgreSQL
 const pool = new Pool({
@@ -18,7 +21,7 @@ const openai = new OpenAI({
 // Pinecone
 const pinecone = new Pinecone({
     apiKey: process.env.PINECONE_API_KEY,
-    
+
 });
 
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
