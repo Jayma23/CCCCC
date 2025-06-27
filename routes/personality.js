@@ -65,6 +65,10 @@ router.post("/submit-responses", async (req, res) => {
                 }
             }
         ]);
+        await pool.query(
+            `UPDATE users SET form_submitted = true WHERE id = $1`,
+            [user_id]
+        );
 
         res.json({ message: "Responses and embedding saved successfully." });
     } catch (error) {
