@@ -36,7 +36,7 @@ router.post("/submit-responses", async (req, res) => {
     try {
         // 1. 保存到PostgreSQL
         const insertQuery = `
-            INSERT INTO questionnaire_responses (user_id, question_id, response)
+            INSERT INTO personality_responses (user_id, question_id, response)
             VALUES ($1, $2, $3)
         `;
         for (const item of responses) {
