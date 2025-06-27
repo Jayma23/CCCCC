@@ -19,4 +19,6 @@ app.use('/personality', require('./routes/personality'));
 
 app.use('/auth', authRouter);
 
+app.use('/api', require('./routes/submitResponses'));
+
 module.exports = app;
