@@ -18,7 +18,7 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// Pinecone
+
 const pinecone = new Pinecone({
     apiKey: process.env.PINECONE_API_KEY,
 
@@ -34,13 +34,13 @@ router.post("/submit-responses", async (req, res) => {
     }
 
     try {
-        // 1. 保存到 PostgreSQL
+        // 1. 保存到PostgreSQL
         const insertQuery = `
             INSERT INTO questionnaire_responses (user_id, question_id, response)
             VALUES ($1, $2, $3)
         `;
         for (const item of responses) {
-            await pool.query(insertQuery, [user_id, item.questionId, item.response]);
+            await pool.query(insertQuery, [user_id, item.question_id, item.response]);
         }
 
         // 2. 拼接所有回答
