@@ -10,7 +10,7 @@ const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
 const maxLength = 16000; // characters，适当限制
-const truncatedText = conversationText.slice(-maxLength); // 保留最新内容
+//const truncatedText = conversationText.slice(-maxLength); // 保留最新内容
 
 // AI 分身回复接口
 router.post('/respond', async (req, res) => {
