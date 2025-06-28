@@ -3,16 +3,16 @@ async function generatePersonalitySummary(conversationText) {
     const messages = [
         {
             role: "system",
-            content: "You're an AI analyst summarizing a user's personality based on their chat history. Return 3-5 bullet points capturing their key interests, tone, social style, and preferences."
+            content: "You're an AI summarizer. Return a SHORT, casual first-person description of the user's personality in 2-3 sentences. Be natural, a little witty, and NOT robotic."
         },
         {
             role: "user",
-            content: conversationText.slice(-16000) // 避免超长文本
+            content: conversationText.slice(-16000)
         }
     ];
 
     const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-3.5-turbo",
         messages
     });
 
@@ -55,7 +55,7 @@ router.post('/respond', async (req, res) => {
 
         const vector = vectorQuery.matches?.[0];
         const createdAt = vector?.metadata?.created_at || "";
-        const personalitySummary = vector?.metadata?.summary || "The user is introspective, likes basketball, enjoys meaningful conversations.";
+        const personalitySummary = vector?.metadata?.summary || "I'm still learning about the user, but they seem thoughtful and expressive.";
 
         const systemPrompt = `
 You are a digital twin of user ${user_id}. 
@@ -117,21 +117,19 @@ Never break character. Respond like a second brain or AI version of the user.`.t
             const vector = embeddingResponse.data[0].embedding;
             const personalitySummary = await generatePersonalitySummary(conversationText);
 
-            if (personalitySummary !== vector?.metadata?.summary) {
-                await pineconeIndex.upsert([
-                    {
-                        id: `chat_summary_${user_id}_${Date.now()}`,
-                        values: vector,
-                        metadata: {
-                            user_id: user_id.toString(),
-                            source: "chat_history",
-                            created_at: new Date().toISOString(),
-                            summary: personalitySummary
-                        }
+            await pineconeIndex.upsert([
+                {
+                    id: `chat_summary_${user_id}_${Date.now()}`,
+                    values: vector,
+                    metadata: {
+                        user_id: user_id.toString(),
+                        source: "chat_history",
+                        created_at: new Date().toISOString(),
+                        summary: personalitySummary
                     }
-                ]);
-                console.log("✅ Updated personality with summary:\n", personalitySummary);
-            }
+                }
+            ]);
+            console.log("✅ Updated personality with summary:\n", personalitySummary);
         }
 
         res.json({ reply });
