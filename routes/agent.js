@@ -100,13 +100,14 @@ Never break character. Respond like a second brain or AI version of the user.`.t
         );
         const messageCount = parseInt(countResult.rows[0].count, 10);
 
-        if (messageCount % 20 === 0) {
+        if (messageCount % 50 === 0) {
             const allChats = await pool.query(
-                `SELECT sender, message FROM chat_history WHERE user_id = $1 ORDER BY created_at ASC`,
+                `SELECT sender, message FROM chat_history WHERE user_id = $1 AND sender = 'user' ORDER BY created_at ASC`,
                 [user_id]
             );
+
             const conversationText = allChats.rows.map(row =>
-                `${row.sender === 'user' ? 'User' : 'AI'}: ${row.message}`
+                `User: ${row.message}`
             ).join('\n').slice(-16000);
 
             const embeddingResponse = await openai.embeddings.create({
@@ -116,19 +117,21 @@ Never break character. Respond like a second brain or AI version of the user.`.t
             const vector = embeddingResponse.data[0].embedding;
             const personalitySummary = await generatePersonalitySummary(conversationText);
 
-            await pineconeIndex.upsert([
-                {
-                    id: `chat_summary_${user_id}_${Date.now()}`,
-                    values: vector,
-                    metadata: {
-                        user_id: user_id.toString(),
-                        source: "chat_history",
-                        created_at: new Date().toISOString(),
-                        summary: personalitySummary
+            if (personalitySummary !== vector?.metadata?.summary) {
+                await pineconeIndex.upsert([
+                    {
+                        id: `chat_summary_${user_id}_${Date.now()}`,
+                        values: vector,
+                        metadata: {
+                            user_id: user_id.toString(),
+                            source: "chat_history",
+                            created_at: new Date().toISOString(),
+                            summary: personalitySummary
+                        }
                     }
-                }
-            ]);
-            console.log("✅ Updated personality with summary:\n", personalitySummary);
+                ]);
+                console.log("✅ Updated personality with summary:\n", personalitySummary);
+            }
         }
 
         res.json({ reply });
@@ -161,7 +164,7 @@ router.post('/update-embedding-from-history', async (req, res) => {
 
     try {
         const allChats = await pool.query(
-            `SELECT sender, message FROM chat_history WHERE user_id = $1 ORDER BY created_at ASC`,
+            `SELECT sender, message FROM chat_history WHERE user_id = $1 AND sender = 'user' ORDER BY created_at ASC`,
             [user_id]
         );
 
@@ -170,8 +173,8 @@ router.post('/update-embedding-from-history', async (req, res) => {
         }
 
         const conversationText = allChats.rows.map(row =>
-            `${row.sender === 'user' ? 'User' : 'AI'}: ${row.message}`
-        ).join('\n');
+            `User: ${row.message}`
+        ).join('\n').slice(-16000);
 
         const embeddingResponse = await openai.embeddings.create({
             model: "text-embedding-3-small",
