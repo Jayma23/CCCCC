@@ -20,36 +20,54 @@ router.post('/respond', async (req, res) => {
     }
 
     try {
-        // 1. 获取用户的人格向量（取最近一次）
+        // 1. 生成输入向量
         const embedResp = await openai.embeddings.create({
             model: "text-embedding-3-small",
             input: message
         });
         const inputVector = embedResp.data[0].embedding;
 
-// 2. 查询最接近的人格向量
+        // 2. 查询用户人格向量（最新的一条）
         const vectorQuery = await pineconeIndex.query({
             vector: inputVector,
             topK: 1,
-            filter: { user_id: user_id.toString() },
+            filter: { user_id: user_id.toString(), source: "chat_history" },
             includeMetadata: true
         });
 
-        const vector = vectorQuery.matches[0];
+        const vector = vectorQuery.matches?.[0];
         const createdAt = vector?.metadata?.created_at || "";
-        const personalityPrompt = `
-You are a digital AI clone of user ${user_id}.
-The user described themselves with the following profile captured on ${createdAt}.
-Your responses should reflect their thinking patterns, tone, and emotional style.
-`;
+        const personalitySummary = vector?.metadata?.summary || "The user is introspective, likes basketball, enjoys meaningful conversations.";
 
-        // 2. 构建 ChatGPT prompt
+        // 3. 构造 system prompt
+        const systemPrompt = `
+You are a digital twin of user ${user_id}. 
+Respond exactly as they would — using their tone, preferences, and emotional style.
+
+Personality Summary (from chat history as of ${createdAt}):
+${personalitySummary}
+
+Never break character. Respond like a second brain or AI version of the user.
+        `.trim();
+
+        // 4. 获取最近 6 轮上下文（按时间升序）
+        const chatHistory = await pool.query(`
+            SELECT sender, message FROM chat_history
+            WHERE user_id = $1 ORDER BY created_at DESC LIMIT 6
+        `, [user_id]);
+
+        const contextMessages = chatHistory.rows.reverse().map(row => ({
+            role: row.sender === 'user' ? 'user' : 'assistant',
+            content: row.message
+        }));
+
         const messages = [
-            { role: "system", content: personalityPrompt },
+            { role: "system", content: systemPrompt },
+            ...contextMessages,
             { role: "user", content: message }
         ];
 
-        // 3. 调用 ChatGPT API
+        // 5. 调用 ChatGPT 生成回复
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages
@@ -57,37 +75,31 @@ Your responses should reflect their thinking patterns, tone, and emotional style
 
         const reply = response.choices[0].message.content;
 
-        // 4. 存入 chat_history 表
-        // 存入 chat_history 表
+        // 6. 存入 chat_history
         await pool.query(`
             INSERT INTO chat_history (user_id, sender, message)
             VALUES ($1, 'user', $2), ($1, 'ai', $3)
         `, [user_id, message, reply]);
 
-        // 🔄 检查当前对话数，满20条自动触发更新 embedding
+        // 7. 每 20 轮更新一次人格向量
         const countResult = await pool.query(
             `SELECT COUNT(*) FROM chat_history WHERE user_id = $1`,
             [user_id]
         );
-
         const messageCount = parseInt(countResult.rows[0].count, 10);
+
         if (messageCount % 20 === 0) {
-            // 获取所有历史
             const allChats = await pool.query(
                 `SELECT sender, message FROM chat_history WHERE user_id = $1 ORDER BY created_at ASC`,
                 [user_id]
             );
-
             const conversationText = allChats.rows.map(row =>
                 `${row.sender === 'user' ? 'User' : 'AI'}: ${row.message}`
-            ).join('\n');
-
-            const maxLength = 16000;
-            const truncatedText = conversationText.slice(-maxLength);
+            ).join('\n').slice(-16000); // truncate
 
             const embeddingResponse = await openai.embeddings.create({
                 model: "text-embedding-3-small",
-                input: truncatedText
+                input: conversationText
             });
 
             const vector = embeddingResponse.data[0].embedding;
@@ -99,20 +111,22 @@ Your responses should reflect their thinking patterns, tone, and emotional style
                     metadata: {
                         user_id: user_id.toString(),
                         source: "chat_history",
-                        created_at: new Date().toISOString()
+                        created_at: new Date().toISOString(),
+                        summary: "Updated from last 20+ messages" // 可以自动生成
                     }
                 }
             ]);
-            console.log(`🧠 Auto-updated chat embedding for user ${user_id}`);
+            console.log(`✅ Updated personality embedding for user ${user_id}`);
         }
 
         res.json({ reply });
 
     } catch (error) {
-        console.error("🧠 AI Agent Error:", error);
+        console.error("🔥 AI Agent error:", error);
         res.status(500).json({ error: "AI agent failed to respond." });
     }
 });
+
 router.get('/history', async (req, res) => {
     const { user_id } = req.query;
     if (!user_id) return res.status(400).json({ error: "Missing user_id" });
