@@ -11,7 +11,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
 const maxLength = 16000; // characters，适当限制
 //const truncatedText = conversationText.slice(-maxLength); // 保留最新内容
-
+const personalitySummary = await generatePersonalitySummary(conversationText);
 // AI 分身回复接口
 router.post('/respond', async (req, res) => {
     const { user_id, message } = req.body;
@@ -112,7 +112,7 @@ Never break character. Respond like a second brain or AI version of the user.
                         user_id: user_id.toString(),
                         source: "chat_history",
                         created_at: new Date().toISOString(),
-                        summary: "Updated from last 20+ messages" // 可以自动生成
+                        summary: personalitySummary // 可以自动生成
                     }
                 }
             ]);
@@ -191,5 +191,58 @@ router.post('/update-embedding-from-history', async (req, res) => {
     }
 });
 
+async function generatePersonalitySummary(conversationText) {
+    const messages = [
+        {
+            role: "system",
+            content: "You're an AI analyst summarizing a user's personality based on their chat history. Return 3-5 bullet points capturing their key interests, tone, social style, and preferences."
+        },
+        {
+            role: "user",
+            content: conversationText.slice(-16000) // 避免超长文本
+        }
+    ];
+
+    const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages
+    });
+
+    return completion.choices[0].message.content;
+}
+
+// 在 /respond 的更新 embedding 部分，调用这个函数生成 summary：
+if (messageCount % 20 === 0) {
+    const allChats = await pool.query(
+        `SELECT sender, message FROM chat_history WHERE user_id = $1 ORDER BY created_at ASC`,
+        [user_id]
+    );
+    const conversationText = allChats.rows.map(row =>
+        `${row.sender === 'user' ? 'User' : 'AI'}: ${row.message}`
+    ).join('\n').slice(-16000);
+
+    const embeddingResponse = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: conversationText
+    });
+    const vector = embeddingResponse.data[0].embedding;
+
+    // 🧠 自动生成人格总结（注入 metadata）
+    const personalitySummary = await generatePersonalitySummary(conversationText);
+
+    await pineconeIndex.upsert([
+        {
+            id: `chat_summary_${user_id}_${Date.now()}`,
+            values: vector,
+            metadata: {
+                user_id: user_id.toString(),
+                source: "chat_history",
+                created_at: new Date().toISOString(),
+                summary: personalitySummary
+            }
+        }
+    ]);
+    console.log("✅ Updated personality with summary:\n", personalitySummary);
+}
 
 module.exports = router;
