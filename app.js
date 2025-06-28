@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/personality', require('./routes/personality'));
 
 app.use('/auth', authRouter);
-app.use('/agent', agentRouter);
+app.use('/chat', require('./routes/agent'));
 
 
 module.exports = app;
