@@ -21,11 +21,18 @@ router.post('/respond', async (req, res) => {
 
     try {
         // 1. 获取用户的人格向量（取最近一次）
+        const embedResp = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: message
+        });
+        const inputVector = embedResp.data[0].embedding;
+
+// 2. 查询最接近的人格向量
         const vectorQuery = await pineconeIndex.query({
+            vector: inputVector,
             topK: 1,
             filter: { user_id: user_id.toString() },
-            includeMetadata: true,
-            includeValues: false
+            includeMetadata: true
         });
 
         const vector = vectorQuery.matches[0];
