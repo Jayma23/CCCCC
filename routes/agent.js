@@ -3,7 +3,7 @@ async function generatePersonalitySummary(conversationText) {
     const messages = [
         {
             role: "system",
-            content: "You're an AI summarizer. Return a SHORT, casual first-person description of the user's personality in 2-3 sentences. Be natural, a little witty, and NOT robotic."
+            content: "You're an AI summarizer. Return a SHORT, casual first-person description of the user's personality in 2-3 sentences. Be natural, a little witty, and NOT robotic. This must adapt to different kinds of users."
         },
         {
             role: "user",
