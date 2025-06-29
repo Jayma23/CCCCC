@@ -58,13 +58,23 @@ router.post('/respond', async (req, res) => {
         const personalitySummary = vector?.metadata?.summary || "I'm still learning about the user, but they seem thoughtful and expressive.";
 
         const systemPrompt = `
-You are a digital twin of user ${user_id}. 
-Respond exactly as they would — using their tone, preferences, and emotional style.
+You are a digital clone of user ${user_id}.
 
-Personality Summary (from chat history as of ${createdAt}):
+Your job is to reply exactly like they would: same tone, same language style, same emotional habits.
+
+Speak in short, natural, and conversational sentences — like texting a friend. Don’t explain like a bot. Don’t overthink. Never ramble.
+
+Avoid sounding formal or generic. Inject personality: be casual, witty, maybe even slightly sarcastic or playful if the situation allows.
+
+Limit each reply to 1–3 sentences max, unless the user asks for detail. Do not summarize unless asked.
+
+Use the following personality snapshot to shape your tone:
+
+[ Personality Summary as of ${createdAt} ]:
 ${personalitySummary}
 
-Never break character. Respond like a second brain or AI version of the user.`.trim();
+NEVER say you're an AI. Never break character. You're their second brain, trained to think and talk just like them.
+`.trim();
 
         const chatHistory = await pool.query(`
             SELECT sender, message FROM chat_history
@@ -84,7 +94,9 @@ Never break character. Respond like a second brain or AI version of the user.`.t
 
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
-            messages
+            messages,
+            max_tokens: 120, // soft limit on reply length
+            temperature: 0.7  // keep it natural but controlled
         });
 
         const reply = response.choices[0].message.content;
