@@ -27,54 +27,42 @@ const pinecone = new Pinecone({
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
 
 router.post("/submit-responses", async (req, res) => {
-    const { user_id, responses } = req.body;
+    const { user_id, name, mbti, age, gender, photo } = req.body;
 
-    if (!user_id || !Array.isArray(responses)) {
-        return res.status(400).json({ error: "Invalid data format" });
+    if (!user_id || !name) {
+        return res.status(400).json({ error: "Missing user_id or name." });
     }
 
     try {
-        // 1. 保存到PostgreSQL
-        const insertQuery = `
-            INSERT INTO personality_responses (user_id, question_id, response)
-            VALUES ($1, $2, $3)
+        // 直接更新 users 表
+        const updateUserQuery = `
+            UPDATE users
+            SET
+                name = $1,
+                mbti = $2,
+                age = $3,
+                gender = $4,
+                photo = $5,
+                form_submitted = true
+            WHERE id = $6
         `;
-        for (const item of responses) {
-            await pool.query(insertQuery, [user_id, item.question_id, item.response]);
-        }
 
-        // 2. 拼接所有回答
-        const combinedText = responses.map(r => r.response).join(" ");
-
-        // 3. 调用 OpenAI v4 生成 embedding
-        const embeddingResponse = await openai.embeddings.create({
-            model: "text-embedding-3-small", // 推荐使用新版
-            input: combinedText
-        });
-
-        const embedding = embeddingResponse.data[0].embedding;
-
-        // 4. 存入 Pinecone
-        await pineconeIndex.upsert([
-            {
-                id: uuidv4(),
-                values: embedding,
-                metadata: {
-                    user_id: user_id.toString(),
-                    created_at: new Date().toISOString()
-                }
-            }
+        await pool.query(updateUserQuery, [
+            name,
+            mbti || null,
+            age || null,
+            gender || null,
+            photo || null,
+            user_id
         ]);
-        await pool.query(
-            `UPDATE users SET form_submitted = true WHERE id = $1`,
-            [user_id]
-        );
 
-        res.json({ message: "Responses and embedding saved successfully." });
+        res.json({ message: "User profile saved successfully." });
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Error saving profile:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
+
 
 module.exports = router;
