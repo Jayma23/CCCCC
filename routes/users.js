@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { Configuration, OpenAIApi } = require("openai");
 
-const openai = new OpenAIApi(new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-}));
-
+const OpenAI = require("openai");
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 router.post('/suggest-reply', async (req, res) => {
   const { context } = req.body;
 
