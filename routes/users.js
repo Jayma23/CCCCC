@@ -2,9 +2,12 @@ const express = require('express');
 const router = express.Router();
 
 const OpenAI = require("openai");
+
+// ✅ 新版 SDK 初始化方式
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
+
 router.post('/suggest-reply', async (req, res) => {
   const { context } = req.body;
 
@@ -22,7 +25,8 @@ Example format:
   `.trim();
 
   try {
-    const completion = await openai.createChatCompletion({
+    // ✅ 新版 SDK 调用方式
+    const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         { role: "system", content: systemPrompt },
@@ -32,7 +36,7 @@ Example format:
       max_tokens: 100,
     });
 
-    const replyText = completion.data.choices[0].message.content.trim();
+    const replyText = completion.choices[0].message.content.trim();
     const suggestions = JSON.parse(replyText);
 
     res.json({ suggestions });
