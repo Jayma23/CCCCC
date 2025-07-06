@@ -19,6 +19,6 @@ app.use('/personality', require('./routes/personality'));
 
 app.use('/auth', authRouter);
 app.use('/chat', require('./routes/agent'));
-
+app.use('/ai', require('./routes/users'));
 
 module.exports = app;
