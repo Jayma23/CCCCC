@@ -10,38 +10,56 @@ const pool = new Pool({
 });
 
 // 通用匹配上传路由
-router.post('/:type', async (req, res) => {
-    const { type } = req.params; // 'quick' or 'detailed'
-    const { user_id, photo_urls } = req.body;
-
-    if (!user_id || !Array.isArray(photo_urls) || photo_urls.length !== 5) {
-        return res.status(400).json({ error: 'user_id and 5 photo_urls required' });
-    }
-
-    if (!['quick', 'detailed'].includes(type)) {
-        return res.status(400).json({ error: 'Invalid match type' });
-    }
+router.post('/detailed', async (req, res) => {
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'Missing user_id' });
 
     try {
-        // 1. 删除旧照片（如果有）
-        await pool.query('DELETE FROM match_photos WHERE user_id = $1 AND match_type = $2', [user_id, type]);
+        // 获取当前用户性别
+        const userRes = await pool.query('SELECT gender FROM users WHERE id = $1', [user_id]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-        // 2. 插入新照片
-        const inserts = photo_urls.map((url, index) => {
-            return pool.query(
-                'INSERT INTO match_photos (user_id, url, match_type, slot) VALUES ($1, $2, $3, $4)',
-                [user_id, url, type, index]
-            );
+        const gender = userRes.rows[0].gender;
+
+        // 查找 match_photos 表中一个异性并且上传过 detailed 照片的用户（排除自己）
+        const matchCandidate = await pool.query(`
+            SELECT DISTINCT user_id FROM match_photos 
+            WHERE user_id != $1 AND match_type = 'detailed' AND user_id IN (
+                SELECT id FROM users WHERE gender != $2
+            )
+            LIMIT 1
+        `, [user_id, gender]);
+
+        if (matchCandidate.rows.length === 0) {
+            return res.status(200).json({ status: 'waiting', message: 'No match found, please try again later.' });
+        }
+
+        const matchedUserId = matchCandidate.rows[0].user_id;
+
+        // 创建 chat_room（不匿名）
+        const chatRoomRes = await pool.query(`
+            INSERT INTO chat_rooms (user1_id, user2_id, is_anonymous)
+            VALUES ($1, $2, false)
+            RETURNING id
+        `, [user_id, matchedUserId]);
+
+        const chat_id = chatRoomRes.rows[0].id;
+
+        return res.json({
+            status: 'matched',
+            chat_id,
+            partner: {
+                user_id: matchedUserId,
+                anonymous: false
+            }
         });
 
-        await Promise.all(inserts);
-
-        res.json({ message: 'Photos uploaded successfully' });
     } catch (err) {
-        console.error('Match photo upload error:', err);
-        res.status(500).json({ error: 'Failed to save photos' });
+        console.error('Detailed match error:', err);
+        res.status(500).json({ error: 'Server error' });
     }
 });
+
 router.post('/quick', async (req, res) => {
     const { user_id } = req.body;
     if (!user_id) return res.status(400).json({ error: 'Missing user_id' });
