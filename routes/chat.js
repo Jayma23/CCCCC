@@ -61,7 +61,7 @@ router.post('/send-message', async (req, res) => {
 
     try {
         await pool.query(`
-            INSERT INTO messages (chat_id, sender_id, content)
+            INSERT INTO chat_messages (chat_id, sender_id, content)
             VALUES ($1, $2, $3)
         `, [chat_id, sender_id, content]);
 
@@ -98,7 +98,7 @@ router.get('/list', async (req, res) => {
         END
       LEFT JOIN LATERAL (
         SELECT content, timestamp
-        FROM messages
+        FROM chat_messages
         WHERE chat_id = r.id
         ORDER BY timestamp DESC
         LIMIT 1
