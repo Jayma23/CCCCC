@@ -42,5 +42,61 @@ router.post('/:type', async (req, res) => {
         res.status(500).json({ error: 'Failed to save photos' });
     }
 });
+router.post('/quick', async (req, res) => {
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'Missing user_id' });
+
+    try {
+        // 获取当前用户性别
+        const userRes = await pool.query('SELECT gender FROM users WHERE id = $1', [user_id]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        const gender = userRes.rows[0].gender;
+
+        // 查找一个异性的等待用户
+        const matchRes = await pool.query(
+            'SELECT * FROM quick_match_queue WHERE gender != $1 ORDER BY created_at LIMIT 1',
+            [gender]
+        );
+
+        if (matchRes.rows.length === 0) {
+            // 没人可匹配，加入队列
+            await pool.query(
+                'INSERT INTO quick_match_queue (user_id, gender) VALUES ($1, $2)',
+                [user_id, gender]
+            );
+            return res.json({ status: 'waiting' });
+        } else {
+            // 找到一个匹配者
+            const match = matchRes.rows[0];
+            const matchedUserId = match.user_id;
+
+            // 清除队列中对方
+            await pool.query('DELETE FROM quick_match_queue WHERE user_id = $1', [matchedUserId]);
+
+            // 创建 chat_room
+            const chatRoomRes = await pool.query(`
+        INSERT INTO chat_rooms (user1_id, user2_id, is_anonymous)
+        VALUES ($1, $2, true)
+        RETURNING id
+      `, [user_id, matchedUserId]);
+
+            const chat_id = chatRoomRes.rows[0].id;
+
+            return res.json({
+                status: 'matched',
+                chat_id,
+                partner: {
+                    user_id: matchedUserId,
+                    anonymous: true
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Quick match error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 
 module.exports = router;
