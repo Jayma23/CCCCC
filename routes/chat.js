@@ -42,7 +42,7 @@ router.get('/messages/:chat_id', async (req, res) => {
     const { chat_id } = req.params;
     try {
         const result = await pool.query(`
-      SELECT * FROM messages
+      SELECT * FROM chat_messages
       WHERE chat_id = $1
       ORDER BY timestamp ASC
     `, [chat_id]);
