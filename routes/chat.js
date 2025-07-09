@@ -61,7 +61,7 @@ router.post('/send-message', async (req, res) => {
 
     try {
         await pool.query(`
-            INSERT INTO chat_messages (chat_id, sender_id, content)
+            INSERT INTO chat_messages (chat_id, sender_id, message)
             VALUES ($1, $2, $3)
         `, [chat_id, sender_id, content]);
 
