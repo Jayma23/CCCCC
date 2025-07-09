@@ -115,6 +115,40 @@ router.post('/quick', async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
+router.get('/status/:user_id', async (req, res) => {
+    const { user_id } = req.params;
+
+    try {
+        // 找这个用户参与的匿名 chat_room
+        const result = await pool.query(
+            `SELECT * FROM chat_rooms 
+             WHERE (user1_id = $1 OR user2_id = $1) AND is_anonymous = true
+             ORDER BY created_at DESC LIMIT 1`,
+            [user_id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ status: 'waiting' });
+        }
+
+        const chat = result.rows[0];
+        const partner_id = chat.user1_id === parseInt(user_id) ? chat.user2_id : chat.user1_id;
+
+        return res.json({
+            status: 'matched',
+            chat_id: chat.id,
+            partner: {
+                user_id: partner_id,
+                anonymous: true
+            }
+        });
+
+    } catch (err) {
+        console.error('Check match status error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 
 
 module.exports = router;
