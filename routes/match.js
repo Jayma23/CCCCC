@@ -65,16 +65,15 @@ router.post('/quick', async (req, res) => {
     if (!user_id) return res.status(400).json({ error: 'Missing user_id' });
 
     try {
-        // 获取当前用户性别
+        // 获取用户性别
         const userRes = await pool.query('SELECT gender FROM users WHERE id = $1', [user_id]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-
         const gender = userRes.rows[0].gender;
 
-        // 查找一个异性的等待用户
+        // 查找队列中的异性
         const matchRes = await pool.query(
-            'SELECT * FROM quick_match_queue WHERE gender != $1 ORDER BY created_at LIMIT 1',
-            [gender]
+            'SELECT * FROM quick_match_queue WHERE gender != $1 AND user_id != $2 ORDER BY created_at LIMIT 1',
+            [gender, user_id]
         );
 
         if (matchRes.rows.length === 0) {
@@ -84,37 +83,48 @@ router.post('/quick', async (req, res) => {
                 [user_id, gender]
             );
             return res.json({ status: 'waiting' });
+        }
+
+        const match = matchRes.rows[0];
+        const matchedUserId = match.user_id;
+
+        // 删除对方队列项
+        await pool.query('DELETE FROM quick_match_queue WHERE user_id = $1', [matchedUserId]);
+
+        // 检查是否已存在 chat_room（确保 user1_id < user2_id）
+        const [u1, u2] = user_id < matchedUserId ? [user_id, matchedUserId] : [matchedUserId, user_id];
+        const existingRoom = await pool.query(
+            'SELECT id FROM chat_rooms WHERE user1_id = $1 AND user2_id = $2',
+            [u1, u2]
+        );
+
+        let chat_id;
+        if (existingRoom.rows.length > 0) {
+            chat_id = existingRoom.rows[0].id;
         } else {
-            // 找到一个匹配者
-            const match = matchRes.rows[0];
-            const matchedUserId = match.user_id;
-
-            // 清除队列中对方
-            await pool.query('DELETE FROM quick_match_queue WHERE user_id = $1', [matchedUserId]);
-
-            // 创建 chat_room
+            // 创建新的 chat_room
             const chatRoomRes = await pool.query(`
         INSERT INTO chat_rooms (user1_id, user2_id, is_anonymous)
         VALUES ($1, $2, true)
         RETURNING id
-      `, [user_id, matchedUserId]);
-
-            const chat_id = chatRoomRes.rows[0].id;
-
-            return res.json({
-                status: 'matched',
-                chat_id,
-                partner: {
-                    user_id: matchedUserId,
-                    anonymous: true
-                }
-            });
+      `, [u1, u2]);
+            chat_id = chatRoomRes.rows[0].id;
         }
+
+        res.json({
+            status: 'matched',
+            chat_id,
+            partner: {
+                user_id: matchedUserId,
+                anonymous: true
+            }
+        });
     } catch (err) {
         console.error('Quick match error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
+
 router.get('/status/:user_id', async (req, res) => {
     const { user_id } = req.params;
 
