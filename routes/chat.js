@@ -98,7 +98,7 @@ router.get('/list', async (req, res) => {
           ELSE r.user1_id
         END
       LEFT JOIN LATERAL (
-        SELECT content, timestamp
+        SELECT message, timestamp
         FROM chat_messages
         WHERE chat_id = r.id
         ORDER BY timestamp DESC
