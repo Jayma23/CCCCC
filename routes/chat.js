@@ -86,9 +86,10 @@ router.get('/list', async (req, res) => {
           WHEN r.user1_id = $1 THEN r.user2_id
           ELSE r.user1_id
         END AS partner_id,
-        u.name AS partner_name,
-        u.photo AS partner_photo,
-        m.content AS last_message,
+        COALESCE(u.name, 'Anonymous') AS partner_name,
+        COALESCE(u.photo, '') AS partner_photo,
+
+          m.content AS last_message,
         m.timestamp AS last_updated
       FROM chat_rooms r
       JOIN users u
