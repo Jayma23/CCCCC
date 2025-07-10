@@ -89,7 +89,7 @@ router.get('/list', async (req, res) => {
         COALESCE(u.name, 'Anonymous') AS partner_name,
         COALESCE(u.photo, '') AS partner_photo,
 
-          m.content AS last_message,
+          m.message AS last_message,
         m.timestamp AS last_updated
       FROM chat_rooms r
       JOIN users u
