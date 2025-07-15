@@ -21,4 +21,5 @@ app.use('/auth', authRouter);
 app.use('/chat', require('./routes/agent'));
 app.use('/ai', require('./routes/users'));
 app.use('/chatroom', require('./routes/chat'));
+app.use('/verify', require('./routes/verify'));
 module.exports = app;
