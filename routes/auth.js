@@ -10,7 +10,7 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
-console.log('DATABASE_URL:', process.env.DATABASE_URL);
+
 const SECRET = process.env.JWT_SECRET;
 
 // 初始化 OpenAI
