@@ -27,7 +27,7 @@ const pinecone = new Pinecone({
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
 
 router.post("/submit-responses", async (req, res) => {
-    const { user_id, name, mbti, age, gender, photo } = req.body;
+    const { user_id, name, mbti, age, gender, orientation, photo } = req.body;
 
     if (!user_id || !name) {
         return res.status(400).json({ error: "Missing user_id or name." });
@@ -43,8 +43,9 @@ router.post("/submit-responses", async (req, res) => {
                 age = $3,
                 gender = $4,
                 photo = $5,
+                sexual_orientation = $6,
                 form_submitted = true
-            WHERE id = $6
+            WHERE id = $7
         `;
 
         await pool.query(updateUserQuery, [
@@ -53,6 +54,7 @@ router.post("/submit-responses", async (req, res) => {
             age || null,
             gender || null,
             photo || null,
+            orientation || null,
             user_id
         ]);
 
