@@ -45,9 +45,10 @@ Guidelines:
 
     // 如果有对话历史，添加上下文
     if (conversationHistory.length > 0) {
-      const recentHistory = conversationHistory.slice(-5).map(msg =>
-          `${msg.isMe ? 'Me' : 'Them'}: ${msg.message}`
-      ).join('\n');
+      const recentHistory = conversationHistory.map(msg => {
+        const speaker = msg.isMe ? 'Customer' : 'Partner';
+        return `${speaker}: ${msg.message}`;
+      }).join('\n');
       contextMessage += `\n\nRecent conversation:\n${recentHistory}`;
     }
 
