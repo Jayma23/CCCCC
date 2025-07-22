@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const OpenAI = require("openai");
-
+const { onlineUsers } = require('../bin/www');
 // ✅ 新版 SDK 初始化方式
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -122,7 +122,11 @@ Guidelines:
     });
   }
 });
-
+router.get('/user/:userId/online-status', (req, res) => {
+  const { userId } = req.params;
+  const isOnline = onlineUsers.has(userId);
+  res.json({ userId, isOnline });
+});
 // 🚀 健康检查路由
 router.get('/health', (req, res) => {
   res.json({
