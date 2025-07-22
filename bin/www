@@ -41,6 +41,12 @@ io.on('connection', (socket) => {
   socket.on('send_message', (data) => {
     const { chat_id, sender_id, receiver_id, content } = data;
     console.log('📩 Message from', sender_id, 'to', receiver_id, content);
+    const payload = {
+      chat_id,
+      sender_id,
+      content,
+      timestamp: new Date().toISOString()
+    };
 
     const receiverSocket = onlineUsers.get(receiver_id);
     if (receiverSocket) {
@@ -51,7 +57,9 @@ io.on('connection', (socket) => {
         timestamp: new Date().toISOString()
       });
     }
+    socket.emit('receive_message', payload);
   });
+
 
   socket.on('typing', ({ receiver_id }) => {
     const receiverSocket = onlineUsers.get(receiver_id);
