@@ -11,6 +11,8 @@ var socketIO = require('socket.io');
 /**
  * Get port from environment and store in Express.
  */
+const express = require('express');
+const router = express.Router();
 const { Pool } = require('pg');
 var port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
@@ -40,7 +42,11 @@ io.on('connection', (socket) => {
     onlineUsers.set(userId, socket.id);
     console.log(`User ${userId} registered on socket`);
   });
-
+  router.get('/user/:userId/online-status', (req, res) => {
+    const { userId } = req.params;
+    const isOnline = onlineUsers.has(userId);
+    res.json({ userId, isOnline });
+  });
   socket.on('send_message', async (data) => {
     const { chat_id, sender_id, receiver_id, content } = data;
     console.log('📩 Message from', sender_id, 'to', receiver_id, content);
