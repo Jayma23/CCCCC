@@ -11,7 +11,7 @@ var socketIO = require('socket.io');
 /**
  * Get port from environment and store in Express.
  */
-
+const { Pool } = require('pg');
 var port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
 var server = http.createServer(app);
@@ -25,7 +25,10 @@ var io = socketIO(server, {
   }
 });
 const onlineUsers = new Map();
-
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
 /**
  * Listen on provided port, on all network interfaces.
