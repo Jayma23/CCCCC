@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
-
+const socketIO = require('socket.io');
+// 连接数据库
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
 
-// 创建或获取 chat_room
+// 搞一个ChatRoom
 router.post('/create-or-get-room', async (req, res) => {
     const { user1_id, user2_id } = req.body;
     if (!user1_id || !user2_id) return res.status(400).json({ error: 'Missing user IDs' });
@@ -37,7 +38,7 @@ router.post('/create-or-get-room', async (req, res) => {
     }
 });
 
-// 获取聊天记录
+// 加载聊天记录
 router.get('/messages/:chat_id', async (req, res) => {
     const { chat_id } = req.params;
     try {
@@ -53,7 +54,7 @@ router.get('/messages/:chat_id', async (req, res) => {
     }
 });
 
-// 发送消息
+// 发消息
 router.post('/send-message', async (req, res) => {
     const { chat_id, sender_id, content } = req.body;
     if (!chat_id || !sender_id || !content)
