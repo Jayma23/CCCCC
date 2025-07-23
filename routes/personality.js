@@ -34,6 +34,7 @@ router.post("/submit-responses", async (req, res) => {
         mbti,
         age,
         gender,
+        height,
         orientation,
         photo_urls = [],
         primary_index = 0
@@ -56,8 +57,9 @@ router.post("/submit-responses", async (req, res) => {
                 gender = $4,
                 photo = $5,
                 sexual_orientation = $6,
+                height = $7,
                 form_submitted = true
-            WHERE id = $7
+            WHERE id = $8
         `;
 
         await pool.query(updateUserQuery, [
@@ -67,6 +69,7 @@ router.post("/submit-responses", async (req, res) => {
             gender || null,
             mainPhotoUrl,         // ✅ 将主图作为 photo 存进 users 表
             orientation || null,
+            height || null,
             user_id
         ]);
 
