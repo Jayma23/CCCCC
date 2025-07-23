@@ -27,14 +27,25 @@ const pinecone = new Pinecone({
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
 
 router.post("/submit-responses", async (req, res) => {
-    const { user_id, name, mbti, age, gender, orientation, photo } = req.body;
+    const {
+        user_id,
+        name,
+        mbti,
+        age,
+        gender,
+        orientation,
+        photo_urls = [],
+        primary_index = 0
+    } = req.body;
 
     if (!user_id || !name) {
         return res.status(400).json({ error: "Missing user_id or name." });
     }
 
     try {
-        // 直接更新 users 表
+        const mainPhotoUrl = photo_urls[primary_index] || null;
+
+        // ✅ Step 1: 更新 users 表
         const updateUserQuery = `
             UPDATE users
             SET
@@ -53,17 +64,33 @@ router.post("/submit-responses", async (req, res) => {
             mbti || null,
             age || null,
             gender || null,
-            photo || null,
+            mainPhotoUrl,         // ✅ 将主图作为 photo 存进 users 表
             orientation || null,
             user_id
         ]);
 
-        res.json({ message: "User profile saved successfully." });
+        // ✅ Step 2: 删除旧照片记录
+        await pool.query(`DELETE FROM user_photos WHERE user_id = $1`, [user_id]);
+
+        // ✅ Step 3: 插入新照片（带主图标记）
+        for (let i = 0; i < photo_urls.length; i++) {
+            const url = photo_urls[i];
+            if (!url) continue;
+
+            await pool.query(
+                `INSERT INTO user_photos (user_id, photo_url, is_primary)
+                 VALUES ($1, $2, $3)`,
+                [user_id, url, i === primary_index]
+            );
+        }
+
+        res.json({ message: "User profile and photos saved successfully." });
     } catch (error) {
         console.error("Error saving profile:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 
 
