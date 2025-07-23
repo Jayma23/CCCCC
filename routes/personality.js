@@ -27,6 +27,7 @@ const pinecone = new Pinecone({
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
 
 router.post("/submit-responses", async (req, res) => {
+    console.log('📥 Incoming profile data:', req.body);
     const {
         user_id,
         name,
