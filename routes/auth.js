@@ -59,7 +59,9 @@ router.post('/login', async (req, res) => {
             message: 'Login successful',
             token,
             user_id: user.id,
-            form_submitted: user.form_submitted
+            form_submitted: user.form_submitted,
+            name: user.name,
+            email: user.email
         });
 
     } catch (err) {
