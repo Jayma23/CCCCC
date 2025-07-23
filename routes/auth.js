@@ -61,7 +61,8 @@ router.post('/login', async (req, res) => {
             user_id: user.id,
             form_submitted: user.form_submitted,
             name: user.name,
-            email: user.email
+            email: user.email,
+            photo: user.photo
         });
 
     } catch (err) {
