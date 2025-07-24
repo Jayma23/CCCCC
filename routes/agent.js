@@ -186,5 +186,67 @@ NEVER say you're an AI. Stay in character.`.trim();
         res.status(500).json({ error: "AI agent failed to respond." });
     }
 });
+router.post('/save-profile', async (req, res) => {
+    const { user_id, questionnaire_answers } = req.body;
+
+    if (!user_id || !questionnaire_answers) {
+        return res.status(400).json({ error: 'Missing data' });
+    }
+
+    const {
+        about_me,
+        interests,
+        lifestyle,
+        ideal_partner,
+        relationship_goals,
+        values,
+        perfect_date,
+        future_dreams
+    } = questionnaire_answers;
+
+    try {
+        const result = await pool.query(`
+      INSERT INTO questionnaire_responses (
+        user_id,
+        about_me,
+        interests,
+        lifestyle,
+        ideal_partner,
+        relationship_goals,
+        values,
+        perfect_date,
+        future_dreams,
+        created_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id) DO UPDATE SET
+        about_me = EXCLUDED.about_me,
+        interests = EXCLUDED.interests,
+        lifestyle = EXCLUDED.lifestyle,
+        ideal_partner = EXCLUDED.ideal_partner,
+        relationship_goals = EXCLUDED.relationship_goals,
+        values = EXCLUDED.values,
+        perfect_date = EXCLUDED.perfect_date,
+        future_dreams = EXCLUDED.future_dreams,
+        created_at = CURRENT_TIMESTAMP
+    `, [
+            user_id,
+            about_me,
+            interests,
+            lifestyle,
+            ideal_partner,
+            relationship_goals,
+            values,
+            perfect_date,
+            future_dreams
+        ]);
+
+        return res.status(200).json({ message: 'Saved successfully' });
+    } catch (err) {
+        console.error('❌ Error saving questionnaire:', err);
+        return res.status(500).json({ error: 'Server error' });
+    }
+});
+
 
 module.exports = router;
