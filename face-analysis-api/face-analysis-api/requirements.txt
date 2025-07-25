@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+numpy
+opencv-python
+insightface==0.7.3
+pillow
+
+
