@@ -14,9 +14,7 @@ const pool = new Pool({
 });
 
 // OpenAI
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+
 
 
 const pinecone = new Pinecone({
