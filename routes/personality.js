@@ -188,7 +188,87 @@ router.get('/get-profile/:user_id', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+router.post('/save-profile', async (req, res) => {
+    const { user_id, questionnaire_answers } = req.body;
 
+    if (!user_id || !questionnaire_answers) {
+        return res.status(400).json({ error: 'Missing user_id or questionnaire_answers' });
+    }
+
+    const {
+        name, birthday, height, gender, sexual_orientation, phone, zipCode,
+        ethnicity = [], selectedAreas = [],
+        interestedIn = [], datingIntentions = [], ethnicityAttraction = [], ageRange = [18, 30],
+        greenFlags = '', redFlags = '', physicalAttraction = '',
+        aboutMe = '', hobbies = '', lifestyle = '', values = '',
+        futureGoals = '', perfectDate = '', extroversion = 5
+    } = questionnaire_answers;
+
+    try {
+        await pool.query('BEGIN');
+
+        // user_profiles
+        await pool.query(`
+      INSERT INTO user_profiles (
+        user_id, name, birthday, height, gender, sexual_orientation,
+        phone, zip_code, ethnicity
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      ON CONFLICT (user_id) DO UPDATE SET
+        name = EXCLUDED.name,
+        birthday = EXCLUDED.birthday,
+        height = EXCLUDED.height,
+        gender = EXCLUDED.gender,
+        sexual_orientation = EXCLUDED.sexual_orientation,
+        phone = EXCLUDED.phone,
+        zip_code = EXCLUDED.zip_code,
+        ethnicity = EXCLUDED.ethnicity
+    `, [user_id, name, birthday || null, height, gender, sexual_orientation, phone, zipCode, ethnicity]);
+
+        // user_preferences
+        await pool.query(`
+      INSERT INTO user_preferences (
+        user_id, interested_in_genders, dating_intentions,
+        ethnicity_attraction, preferred_areas, age_min, age_max
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+      ON CONFLICT (user_id) DO UPDATE SET
+        interested_in_genders = EXCLUDED.interested_in_genders,
+        dating_intentions = EXCLUDED.dating_intentions,
+        ethnicity_attraction = EXCLUDED.ethnicity_attraction,
+        preferred_areas = EXCLUDED.preferred_areas,
+        age_min = EXCLUDED.age_min,
+        age_max = EXCLUDED.age_max
+    `, [user_id, interestedIn, datingIntentions, ethnicityAttraction, selectedAreas, ageRange[0], ageRange[1]]);
+
+        // user_personality
+        await pool.query(`
+      INSERT INTO user_personality (
+        user_id, about_me, hobbies, lifestyle, values,
+        future_goals, perfect_date, green_flags, red_flags,
+        physical_attraction_traits, extroversion_score, completed_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        about_me = EXCLUDED.about_me,
+        hobbies = EXCLUDED.hobbies,
+        lifestyle = EXCLUDED.lifestyle,
+        values = EXCLUDED.values,
+        future_goals = EXCLUDED.future_goals,
+        perfect_date = EXCLUDED.perfect_date,
+        green_flags = EXCLUDED.green_flags,
+        red_flags = EXCLUDED.red_flags,
+        physical_attraction_traits = EXCLUDED.physical_attraction_traits,
+        extroversion_score = EXCLUDED.extroversion_score,
+        completed_at = NOW()
+    `, [user_id, aboutMe, hobbies, lifestyle, values, futureGoals, perfectDate, greenFlags, redFlags, physicalAttraction, extroversion]);
+
+        await pool.query('COMMIT');
+        res.json({ message: 'Profile saved successfully' });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error('❌ Error saving profile:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 
 
