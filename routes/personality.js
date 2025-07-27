@@ -102,16 +102,16 @@ router.put('/update-profile', async (req, res) => {
         age,
         gender,
         orientation,
-        photos = []
+        photo_urls = []
     } = req.body;
 
-    if (!user_id || !name || photos.length === 0) {
-        return res.status(400).json({ error: 'Missing required fields' });
+    if (!user_id || !name) {
+        return res.status(400).json({ error: 'Missing required fields: user_id, name' });
     }
 
     try {
         // 主图设为第 1 张有效图
-        const primaryUrl = photos.find(p => p) || null;
+        const primaryUrl = photo_urls.find(p => p) || null;
 
         // 更新 users 表
         await pool.query(`
@@ -129,8 +129,8 @@ router.put('/update-profile', async (req, res) => {
         await pool.query(`DELETE FROM user_photos WHERE user_id = $1`, [user_id]);
 
         // 重新插入照片
-        for (let i = 0; i < photos.length; i++) {
-            const url = photos[i];
+        for (let i = 0; i < photo_urls.length; i++) {
+            const url = photo_urls[i];
             if (!url) continue;
 
             await pool.query(`
@@ -149,8 +149,12 @@ router.put('/update-profile', async (req, res) => {
 router.get('/get-profile/:user_id', async (req, res) => {
     const user_id = req.params.user_id;
 
+    if (!user_id) {
+        return res.status(400).json({ error: 'Missing user_id' });
+    }
+
     try {
-        // 获取基本信息
+        // 1. 获取基本用户信息和照片
         const userResult = await pool.query(`
             SELECT id, name, height, age, gender, sexual_orientation AS orientation, photo
             FROM users
@@ -163,7 +167,7 @@ router.get('/get-profile/:user_id', async (req, res) => {
 
         const user = userResult.rows[0];
 
-        // 获取照片列表（按主图优先排序）
+        // 2. 获取照片列表
         const photosResult = await pool.query(`
             SELECT photo_url
             FROM user_photos
@@ -171,20 +175,169 @@ router.get('/get-profile/:user_id', async (req, res) => {
             ORDER BY is_primary DESC, uploaded_at ASC
         `, [user_id]);
 
-        const photos = photosResult.rows.map(row => row.photo_url);
-
-        // 确保总是返回 5 个槽位（空补 null）
-        while (photos.length < 5) {
-            photos.push(null);
+        const photo_urls = photosResult.rows.map(row => row.photo_url);
+        while (photo_urls.length < 5) {
+            photo_urls.push(null);
         }
 
+        // 3. 获取详细档案信息
+        const profileResult = await pool.query(`
+            SELECT name, birthday, height, gender, sexual_orientation,
+                   phone, zip_code, ethnicity
+            FROM user_profiles WHERE user_id = $1
+        `, [user_id]);
+
+        // 4. 获取偏好设置
+        const preferencesResult = await pool.query(`
+            SELECT interested_in_genders, dating_intentions,
+                   ethnicity_attraction, preferred_areas, age_min, age_max
+            FROM user_preferences WHERE user_id = $1
+        `, [user_id]);
+
+        // 5. 获取个性信息
+        const personalityResult = await pool.query(`
+            SELECT about_me, hobbies, lifestyle, values,
+                   future_goals, perfect_date, green_flags, red_flags,
+                   physical_attraction_traits, extroversion_score
+            FROM user_personality WHERE user_id = $1
+        `, [user_id]);
+
+        // 6. 整合所有数据
+        const profile = profileResult.rows[0] || {};
+        const preferences = preferencesResult.rows[0] || {};
+        const personality = personalityResult.rows[0] || {};
+
+        // 7. 构造questionnaire_answers格式
+        const questionnaire_answers = {
+            // 基本信息
+            name: profile.name || user.name,
+            phone: profile.phone || '',
+            birthday: profile.birthday || '',
+            gender: profile.gender || user.gender,
+            sexuality: profile.sexual_orientation || user.orientation,
+            ethnicity: profile.ethnicity || [],
+            height: profile.height || user.height,
+            zipCode: profile.zip_code || '',
+            extroversion: personality.extroversion_score || 5,
+
+            // 地区偏好
+            selectedAreas: preferences.preferred_areas || [],
+
+            // 约会偏好
+            datingIntentions: preferences.dating_intentions || [],
+            interestedIn: preferences.interested_in_genders || [],
+            ethnicityAttraction: preferences.ethnicity_attraction || [],
+            ageRange: [preferences.age_min || 18, preferences.age_max || 30],
+
+            // 偏好描述
+            greenFlags: personality.green_flags || '',
+            redFlags: personality.red_flags || '',
+            physicalAttraction: personality.physical_attraction_traits || '',
+
+            // 个性描述
+            hobbies: personality.hobbies || '',
+            aboutMe: personality.about_me || '',
+            lifestyle: personality.lifestyle || '',
+            values: personality.values || '',
+            futureGoals: personality.future_goals || '',
+            perfectDate: personality.perfect_date || ''
+        };
+
+        // 8. 返回完整数据
         res.json({
+            // 基本用户信息
             ...user,
-            photos
+            photo_urls,
+
+            // 问卷答案（用于前端表单填充）
+            questionnaire_answers
         });
 
     } catch (err) {
-        console.error('❌ Error loading profile:', err);
+        console.error('❌ Error fetching profile:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.put('/update-matching-profile', async (req, res) => {
+    const { user_id, questionnaire_answers } = req.body;
+
+    if (!user_id || !questionnaire_answers) {
+        return res.status(400).json({ error: 'Missing user_id or questionnaire_answers' });
+    }
+
+    const {
+        name, birthday, height, gender, sexuality, phone, zipCode,
+        ethnicity = [], selectedAreas = [],
+        interestedIn = [], datingIntentions = [], ethnicityAttraction = [], ageRange = [18, 30],
+        greenFlags = '', redFlags = '', physicalAttraction = '',
+        aboutMe = '', hobbies = '', lifestyle = '', values = '',
+        futureGoals = '', perfectDate = '', extroversion = 5
+    } = questionnaire_answers;
+
+    try {
+        await pool.query('BEGIN');
+
+        // 更新 user_profiles
+        await pool.query(`
+            INSERT INTO user_profiles (
+                user_id, name, birthday, height, gender, sexual_orientation,
+                phone, zip_code, ethnicity
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            ON CONFLICT (user_id) DO UPDATE SET
+                name = EXCLUDED.name,
+                birthday = EXCLUDED.birthday,
+                height = EXCLUDED.height,
+                gender = EXCLUDED.gender,
+                sexual_orientation = EXCLUDED.sexual_orientation,
+                phone = EXCLUDED.phone,
+                zip_code = EXCLUDED.zip_code,
+                ethnicity = EXCLUDED.ethnicity,
+                updated_at = NOW()
+        `, [user_id, name, birthday || null, height, gender, sexuality, phone, zipCode, ethnicity]);
+
+        // 更新 user_preferences
+        await pool.query(`
+            INSERT INTO user_preferences (
+                user_id, interested_in_genders, dating_intentions,
+                ethnicity_attraction, preferred_areas, age_min, age_max
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+            ON CONFLICT (user_id) DO UPDATE SET
+                interested_in_genders = EXCLUDED.interested_in_genders,
+                dating_intentions = EXCLUDED.dating_intentions,
+                ethnicity_attraction = EXCLUDED.ethnicity_attraction,
+                preferred_areas = EXCLUDED.preferred_areas,
+                age_min = EXCLUDED.age_min,
+                age_max = EXCLUDED.age_max,
+                updated_at = NOW()
+        `, [user_id, interestedIn, datingIntentions, ethnicityAttraction, selectedAreas, ageRange[0], ageRange[1]]);
+
+        // 更新 user_personality
+        await pool.query(`
+            INSERT INTO user_personality (
+                user_id, about_me, hobbies, lifestyle, values,
+                future_goals, perfect_date, green_flags, red_flags,
+                physical_attraction_traits, extroversion_score, completed_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+                about_me = EXCLUDED.about_me,
+                hobbies = EXCLUDED.hobbies,
+                lifestyle = EXCLUDED.lifestyle,
+                values = EXCLUDED.values,
+                future_goals = EXCLUDED.future_goals,
+                perfect_date = EXCLUDED.perfect_date,
+                green_flags = EXCLUDED.green_flags,
+                red_flags = EXCLUDED.red_flags,
+                physical_attraction_traits = EXCLUDED.physical_attraction_traits,
+                extroversion_score = EXCLUDED.extroversion_score,
+                completed_at = NOW()
+        `, [user_id, aboutMe, hobbies, lifestyle, values, futureGoals, perfectDate, greenFlags, redFlags, physicalAttraction, extroversion]);
+
+        await pool.query('COMMIT');
+        res.json({ message: 'Matching profile updated successfully' });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error('❌ Error updating matching profile:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -269,6 +422,62 @@ router.post('/save-profile', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+router.get('/get__profile/:user_id', async (req, res) => {
+    const user_id = req.params.user_id;
+
+    if (!user_id) {
+        return res.status(400).json({ error: 'Missing user_id' });
+    }
+
+    try {
+        // 1. 查询 user_profiles
+        const profileResult = await pool.query(`
+            SELECT name, birthday, height, gender, sexual_orientation,
+                   phone, zip_code, ethnicity
+            FROM user_profiles WHERE user_id = $1
+        `, [user_id]);
+
+        // 2. 查询 user_preferences
+        const preferencesResult = await pool.query(`
+            SELECT interested_in_genders, dating_intentions,
+                   ethnicity_attraction, preferred_areas, age_min, age_max
+            FROM user_preferences WHERE user_id = $1
+        `, [user_id]);
+
+        // 3. 查询 user_personality
+        const personalityResult = await pool.query(`
+            SELECT about_me, hobbies, lifestyle, values,
+                   future_goals, perfect_date, green_flags, red_flags,
+                   physical_attraction_traits, extroversion_score
+            FROM user_personality WHERE user_id = $1
+        `, [user_id]);
+
+        // 如果都没有数据，返回提示
+        if (
+            profileResult.rows.length === 0 &&
+            preferencesResult.rows.length === 0 &&
+            personalityResult.rows.length === 0
+        ) {
+            return res.status(404).json({ error: 'Profile not found' });
+        }
+
+        // 统一整合返回
+        const result = {
+            user_id,
+            ...profileResult.rows[0],
+            ...preferencesResult.rows[0],
+            ...personalityResult.rows[0],
+        };
+
+        res.json(result);
+
+    } catch (err) {
+        console.error('❌ Error fetching profile:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 
 
 
