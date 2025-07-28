@@ -37,6 +37,7 @@ router.post("/submit-responses", async (req, res) => {
         height,
         orientation,
         photo_urls = [],
+        selected_cards,
         primary_index = 0
     } = req.body;
 
@@ -58,8 +59,9 @@ router.post("/submit-responses", async (req, res) => {
                 photo = $5,
                 sexual_orientation = $6,
                 height = $7,
-                form_submitted = true
-            WHERE id = $8
+                form_submitted = true,
+                selected_cards = $8
+            WHERE id = $9
         `;
 
         await pool.query(updateUserQuery, [
@@ -70,7 +72,8 @@ router.post("/submit-responses", async (req, res) => {
             mainPhotoUrl,         // ✅ 将主图作为 photo 存进 users 表
             orientation || null,
             height || null,
-            user_id
+            user_id,
+            selected_cards || null
         ]);
 
         // ✅ Step 2: 删除旧照片记录
@@ -156,7 +159,7 @@ router.get('/get-profile/:user_id', async (req, res) => {
     try {
         // 1. 获取基本用户信息和照片
         const userResult = await pool.query(`
-            SELECT id, name, height, age, gender, sexual_orientation AS orientation, photo
+            SELECT id, name, height, age, gender, sexual_orientation AS orientation, photo, selected_card_url
             FROM users
             WHERE id = $1
         `, [user_id]);
