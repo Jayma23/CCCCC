@@ -262,7 +262,13 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     }
     ctx.fillText(line, x, y);
 }
-
+function BufferToStream(buffer) {
+    const stream = require('stream');
+    const duplex = new stream.Duplex();
+    duplex.push(buffer);
+    duplex.push(null);
+    return duplex;
+}
 router.post('/Gcard', async (req, res) => {
     const { name, description, photoUrl } = req.body;
 
