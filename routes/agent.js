@@ -302,6 +302,14 @@ router.post('/Gcard', async (req, res) => {
         // 导出 PNG 到 buffer
         const buffer = canvas.toBuffer('image/png');
         const filename = `card_${uuidv4()}.png`;
+        const cloudinary = require('cloudinary').v2;
+        require('dotenv').config();
+
+        cloudinary.config({
+            cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+            api_key: process.env.CLOUDINARY_API_KEY,
+            api_secret: process.env.CLOUDINARY_API_SECRET
+        });
 
         // 上传到 Cloudinary
         const uploadResponse = await cloudinary.uploader.upload_stream(
