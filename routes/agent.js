@@ -54,8 +54,8 @@ async function generateCard({ name, photoUrl, description }, outputPath) {
     ctx.fillRect(0, 0, width, height);
 
     // 3. 写文字（名字）
-    const font = PImage.registerFont(path.join(__dirname, '../fonts/OpenSans-Bold.ttf'), 'OpenSans');
-    font.loadSync();
+
+    
     ctx.font = '32pt OpenSans';
     ctx.fillStyle = '#222';
     ctx.fillText(`Your date: ${name}`, 280, 120);
