@@ -246,6 +246,10 @@ NEVER say you're an AI. Stay in character.`.trim();
 });
 router.post('/Gcard', async (req, res) => {
     const { name, description, photoUrl } = req.body;
+    const cardsDir = path.join(__dirname, '../cards');
+    if (!fs.existsSync(cardsDir)) {
+        fs.mkdirSync(cardsDir, { recursive: true });
+    }
 
     try {
         // 读取用户头像
@@ -269,7 +273,11 @@ router.post('/Gcard', async (req, res) => {
 
         // 写名字
         ctx.fillStyle = '#333';
-        ctx.font = '24pt Arial';
+        const fontPath = path.join(__dirname, '../fonts/Roboto-Regular.ttf');
+        const font = PImage.registerFont(fontPath, 'Roboto');
+        font.loadSync();
+        ctx.font = '24pt Roboto';
+
         ctx.fillText(name || 'Anonymous', 50, 200);
 
         // 写描述
@@ -283,7 +291,7 @@ router.post('/Gcard', async (req, res) => {
         await PImage.encodePNGToStream(img, out);
 
         out.on('finish', () => {
-            res.json({ url: `https://your-server.com/cards/${fileName}` });
+            res.json({ url: `https://ccbackendx-2.onrender.com/cards/${fileName}` });
         });
     } catch (err) {
         console.error('生成失败:', err);
