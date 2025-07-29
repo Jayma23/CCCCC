@@ -9,15 +9,18 @@
     "@pinecone-database/pinecone": "^6.1.1",
     "axios": "^1.10.0",
     "bcrypt": "^6.0.0",
+    "canvas": "^3.1.2",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
     "debug": "~2.6.9",
     "dotenv": "^16.5.0",
     "express": "~4.16.1",
+    "jimp": "^1.6.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "~1.9.1",
     "openai": "^5.7.0",
     "pg": "^8.16.2",
+    "pureimage": "^0.4.18",
     "socket.io": "^4.8.1",
     "uuid": "^11.1.0"
   }

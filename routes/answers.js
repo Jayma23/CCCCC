@@ -8,7 +8,7 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-router.post('/', async (req, res) => {
+router.post('/ok', async (req, res) => {
     const { user_id, answers } = req.body;
     if (!user_id || !answers) {
         return res.status(400).json({ error: 'Missing user_id or answers' });
