@@ -480,7 +480,7 @@ router.get('/get__profile/:user_id', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
-router.post("/submit-responses", async (req, res) => {
+router.post("/preference", async (req, res) => {
     console.log('📥 Incoming profile data:', req.body);
     const {
         distance,
@@ -515,7 +515,7 @@ router.post("/submit-responses", async (req, res) => {
         ]);
 
         // ✅ Step 2: 删除旧照片记录
-        
+
 
         res.json({ message: "User profile and photos saved successfully." });
     } catch (error) {
