@@ -502,7 +502,7 @@ router.post("/preference", async (req, res) => {
             UPDATE users
             SET
                  distance = $1,
-                photo_urls = $2
+                 selected_card_url = $2
                 
             WHERE id = $3
         `;
