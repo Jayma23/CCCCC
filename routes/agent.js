@@ -53,11 +53,8 @@ const OpenAI = require('openai');
 require('dotenv').config();
 
 
-const path = require('path');
 
-const fontPath = path.join(__dirname, '../assets/NotoSansSC-VariableFont_wght.ttf');
-const notoFont = PImage.registerFont(fontPath, 'NotoSansSC');
-notoFont.loadSync();
+
 
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
