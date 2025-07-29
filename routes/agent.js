@@ -41,6 +41,57 @@ async function classifyTraitsFromConversation(conversationText) {
     const jsonMatch = raw.match(/\{[\s\S]*?\}/);
     return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
 }
+async function generateCard({ name, photoUrl, description }, outputPath) {
+    const width = 800;
+    const height = 1000;
+
+    // 1. 初始化 pureimage 画布
+    const img = PImage.make(width, height);
+    const ctx = img.getContext('2d');
+
+    // 2. 背景填充
+    ctx.fillStyle = '#fde4ec'; // 粉色背景
+    ctx.fillRect(0, 0, width, height);
+
+    // 3. 写文字（名字）
+    const font = PImage.registerFont(path.join(__dirname, '../fonts/OpenSans-Bold.ttf'), 'OpenSans');
+    font.loadSync();
+    ctx.font = '32pt OpenSans';
+    ctx.fillStyle = '#222';
+    ctx.fillText(`Your date: ${name}`, 280, 120);
+
+    // 4. 写描述文字
+    ctx.font = '20pt OpenSans';
+    wrapText(ctx, description, 280, 180, 420, 30);
+
+    // 5. 用 Jimp 加载头像 + 画到 pureimage 上
+    const avatar = await Jimp.read(photoUrl);
+    avatar.resize(240, 240);
+    const circular = await circularCrop(avatar);
+
+    circular.scan(0, 0, circular.bitmap.width, circular.bitmap.height, function (x, y, idx) {
+        const r = this.bitmap.data[idx];
+        const g = this.bitmap.data[idx + 1];
+        const b = this.bitmap.data[idx + 2];
+        const a = this.bitmap.data[idx + 3];
+        ctx.setPixelColor(PImage.makeRGBA(r, g, b, a), 80 + x, 80 + y);
+    });
+
+    // 6. 保存输出
+    await PImage.encodePNGToStream(img, fs.createWriteStream(outputPath));
+}
+async function circularCrop(image) {
+    const size = image.bitmap.width;
+    const mask = await new Jimp(size, size, 0x00000000);
+    mask.scan(0, 0, size, size, function (x, y, idx) {
+        const dx = x - size / 2;
+        const dy = y - size / 2;
+        if (dx * dx + dy * dy <= (size / 2) ** 2) {
+            this.bitmap.data[idx + 3] = 255;
+        }
+    });
+    return image.mask(mask, 0, 0);
+}
 
 // Express router setup
 const { createCanvas, loadImage } = require('canvas');
@@ -188,53 +239,26 @@ NEVER say you're an AI. Stay in character.`.trim();
         res.status(500).json({ error: "AI agent failed to respond." });
     }
 });
-router.post('/gcard', async function generateDateCard({ name, photoUrl, description }, outputPath) {
-        const width = 800;
-        const height = 1000;
-        const canvas = createCanvas(width, height);
-        const ctx = canvas.getContext('2d');
-
-        // 背景渐变
-        const gradient = ctx.createLinearGradient(0, 0, width, height);
-        gradient.addColorStop(0, '#ffe4e1');
-        gradient.addColorStop(1, '#fafafa');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, width, height);
-
-        // 加载头像
-        try {
-            const img = await loadImage(photoUrl);
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(160, 200, 120, 0, Math.PI * 2, true);
-            ctx.closePath();
-            ctx.clip();
-            ctx.drawImage(img, 40, 80, 240, 240);
-            ctx.restore();
-        } catch (e) {
-            console.error("图片加载失败", e);
-        }
-
-        // 名字
-        ctx.fillStyle = '#333';
-        ctx.font = 'bold 32px sans-serif';
-        ctx.fillText(`Your date: ${name}`, 300, 150);
-
-        // 描述文字
-        ctx.font = '20px sans-serif';
-        ctx.fillStyle = '#444';
-        const maxWidth = 420;
-        const lines = wrapText(ctx, description, maxWidth);
-        lines.forEach((line, i) => {
-            ctx.fillText(line, 300, 210 + i * 30);
-        });
-
-        // 保存图片
-        const buffer = canvas.toBuffer('image/png');
-        fs.writeFileSync(outputPath, buffer);
-        console.log(`✅ 卡片生成成功: ${outputPath}`);
+router.post('/Gcard', async (req, res) => {
+    const { name, photoUrl, description } = req.body;
+    if (!name || !photoUrl || !description) {
+        return res.status(400).json({ error: 'Missing fields' });
     }
-);
+
+    const filename = `card_${Date.now()}.png`;
+    const outputPath = path.join(__dirname, '..', 'cards', filename);
+
+    try {
+        await generateCard({ name, photoUrl, description }, outputPath);
+        res.status(200).json({
+            message: 'Card generated',
+            imageUrl: `/cards/${filename}`
+        });
+    } catch (err) {
+        console.error('卡片生成失败:', err);
+        res.status(500).json({ error: 'Generation failed' });
+    }
+});
 function wrapText(ctx, text, maxWidth) {
     const words = text.split(' ');
     const lines = [];
