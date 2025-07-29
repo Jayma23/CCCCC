@@ -480,7 +480,49 @@ router.get('/get__profile/:user_id', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+router.post("/submit-responses", async (req, res) => {
+    console.log('📥 Incoming profile data:', req.body);
+    const {
+        distance,
+        user_id,
+        photo_urls,
 
+
+    } = req.body;
+
+    if (!user_id) {
+        return res.status(400).json({ error: "Missing user_id or name." });
+    }
+
+    try {
+
+
+        // ✅ Step 1: 更新 users 表
+        const updateUserQuery = `
+            UPDATE users
+            SET
+                 distance = $1,
+                photo_urls = $2,
+                
+            WHERE user_id = $3
+        `;
+
+        await pool.query(updateUserQuery, [
+
+             distance || 0,
+            photo_urls || null,
+
+        ]);
+
+        // ✅ Step 2: 删除旧照片记录
+        
+
+        res.json({ message: "User profile and photos saved successfully." });
+    } catch (error) {
+        console.error("Error saving profile:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
 
 
 
