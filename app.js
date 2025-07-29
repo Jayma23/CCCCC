@@ -6,7 +6,7 @@ const logger = require('morgan');
 const cors = require('cors');
 const agentRouter = require('./routes/agent');
 const authRouter = require('./routes/auth');
-app.use('/cards', express.static(path.join(__dirname, 'cards')));
+
 const app = express();
 
 app.use(logger('dev'));
@@ -24,5 +24,5 @@ app.use('/chatroom', require('./routes/chat'));
 app.use('/verify', require('./routes/verify'));
 const userRouter = require('./routes/users');
 app.use('/user', userRouter);
-
+app.use('/cards', express.static(path.join(__dirname, 'cards')));
 module.exports = app;
