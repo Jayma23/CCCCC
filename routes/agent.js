@@ -44,7 +44,7 @@ async function classifyTraitsFromConversation(conversationText) {
 
 // Express router setup
 
-const fs = require('fs');
+
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
@@ -52,10 +52,7 @@ const { Pinecone } = require('@pinecone-database/pinecone');
 const OpenAI = require('openai');
 require('dotenv').config();
 
-const Jimp = require('jimp');
-const { v4: uuidv4 } = require('uuid');
-const { createCanvas, loadImage, registerFont } = require('canvas');
-const PImage = require('pureimage');
+
 const path = require('path');
 
 const fontPath = path.join(__dirname, '../assets/NotoSansSC-VariableFont_wght.ttf');
