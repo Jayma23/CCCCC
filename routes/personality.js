@@ -504,7 +504,7 @@ router.post("/preference", async (req, res) => {
                  distance = $1,
                 photo_urls = $2,
                 
-            WHERE user_id = $3
+            WHERE id = $3
         `;
 
         await pool.query(updateUserQuery, [
