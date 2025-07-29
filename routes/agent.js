@@ -246,10 +246,6 @@ NEVER say you're an AI. Stay in character.`.trim();
 });
 router.post('/Gcard', async (req, res) => {
     const { name, description, photoUrl } = req.body;
-    const cardsDir = path.join(__dirname, '../cards');
-    if (!fs.existsSync(cardsDir)) {
-        fs.mkdirSync(cardsDir, { recursive: true });
-    }
 
     try {
         // 读取用户头像
@@ -266,38 +262,41 @@ router.post('/Gcard', async (req, res) => {
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, width, height);
 
-        // 把头像画上去
+        // 头像
         const buffer = await avatar.getBufferAsync(Jimp.MIME_PNG);
         const avatarImg = await PImage.decodePNGFromStream(BufferToStream(buffer));
         ctx.drawImage(avatarImg, 140, 40); // 居中
 
-        // 写名字
+        // 使用默认字体（系统 fallback 字体）
         ctx.fillStyle = '#333';
-        const fontPath = path.join(__dirname, '../fonts/Roboto-Regular.ttf');
-        const font = PImage.registerFont(fontPath, 'Roboto');
-        font.loadSync();
-        ctx.font = '24pt Roboto';
-
+        ctx.font = '24pt sans-serif';  // ✅ 不再加载任何文件
         ctx.fillText(name || 'Anonymous', 50, 200);
 
-        // 写描述
-        ctx.font = '18pt Arial';
+        ctx.font = '18pt sans-serif';
         drawMultilineText(ctx, description || '', 50, 250, 300, 24);
 
-        // 保存
+        // 检查 cards 文件夹存在性
+        const cardsDir = path.join(__dirname, '../cards');
+        if (!fs.existsSync(cardsDir)) {
+            fs.mkdirSync(cardsDir, { recursive: true });
+        }
+
         const fileName = `card_${uuidv4()}.png`;
-        const filePath = path.join(__dirname, `../cards/${fileName}`);
+        const filePath = path.join(cardsDir, fileName);
         const out = fs.createWriteStream(filePath);
+
         await PImage.encodePNGToStream(img, out);
 
         out.on('finish', () => {
             res.json({ url: `https://ccbackendx-2.onrender.com/cards/${fileName}` });
         });
+
     } catch (err) {
         console.error('生成失败:', err);
         res.status(500).json({ error: 'Card generation failed' });
     }
 });
+
 
 // 把 buffer 变成 stream 的工具函数
 function BufferToStream(buffer) {
