@@ -43,6 +43,8 @@ async function classifyTraitsFromConversation(conversationText) {
 }
 
 // Express router setup
+const { createCanvas, loadImage } = require('canvas');
+const fs = require('fs');
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
@@ -186,67 +188,70 @@ NEVER say you're an AI. Stay in character.`.trim();
         res.status(500).json({ error: "AI agent failed to respond." });
     }
 });
-router.post('/save-profile', async (req, res) => {
-    const { user_id, questionnaire_answers } = req.body;
+router.post('/gcard', async function generateDateCard({ name, photoUrl, description }, outputPath) {
+        const width = 800;
+        const height = 1000;
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
 
-    if (!user_id || !questionnaire_answers) {
-        return res.status(400).json({ error: 'Missing data' });
+        // 背景渐变
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#ffe4e1');
+        gradient.addColorStop(1, '#fafafa');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // 加载头像
+        try {
+            const img = await loadImage(photoUrl);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(160, 200, 120, 0, Math.PI * 2, true);
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(img, 40, 80, 240, 240);
+            ctx.restore();
+        } catch (e) {
+            console.error("图片加载失败", e);
+        }
+
+        // 名字
+        ctx.fillStyle = '#333';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.fillText(`Your date: ${name}`, 300, 150);
+
+        // 描述文字
+        ctx.font = '20px sans-serif';
+        ctx.fillStyle = '#444';
+        const maxWidth = 420;
+        const lines = wrapText(ctx, description, maxWidth);
+        lines.forEach((line, i) => {
+            ctx.fillText(line, 300, 210 + i * 30);
+        });
+
+        // 保存图片
+        const buffer = canvas.toBuffer('image/png');
+        fs.writeFileSync(outputPath, buffer);
+        console.log(`✅ 卡片生成成功: ${outputPath}`);
     }
+);
+function wrapText(ctx, text, maxWidth) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = words[0];
 
-    const {
-        about_me,
-        interests,
-        lifestyle,
-        ideal_partner,
-        relationship_goals,
-        values,
-        perfect_date,
-        future_dreams
-    } = questionnaire_answers;
-
-    try {
-        const result = await pool.query(`
-      INSERT INTO questionnaire_responses (
-        user_id,
-        about_me,
-        interests,
-        lifestyle,
-        ideal_partner,
-        relationship_goals,
-        values,
-        perfect_date,
-        future_dreams,
-        created_at
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
-      ON CONFLICT (user_id) DO UPDATE SET
-        about_me = EXCLUDED.about_me,
-        interests = EXCLUDED.interests,
-        lifestyle = EXCLUDED.lifestyle,
-        ideal_partner = EXCLUDED.ideal_partner,
-        relationship_goals = EXCLUDED.relationship_goals,
-        values = EXCLUDED.values,
-        perfect_date = EXCLUDED.perfect_date,
-        future_dreams = EXCLUDED.future_dreams,
-        created_at = CURRENT_TIMESTAMP
-    `, [
-            user_id,
-            about_me,
-            interests,
-            lifestyle,
-            ideal_partner,
-            relationship_goals,
-            values,
-            perfect_date,
-            future_dreams
-        ]);
-
-        return res.status(200).json({ message: 'Saved successfully' });
-    } catch (err) {
-        console.error('❌ Error saving questionnaire:', err);
-        return res.status(500).json({ error: 'Server error' });
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + ' ' + word).width;
+        if (width < maxWidth) {
+            currentLine += ' ' + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
     }
-});
-
+    lines.push(currentLine);
+    return lines;
+}
 
 module.exports = router;
