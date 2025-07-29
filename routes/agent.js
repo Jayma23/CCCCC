@@ -95,7 +95,7 @@ async function circularCrop(image) {
 }
 
 // Express router setup
-const { createCanvas, loadImage } = require('canvas');
+
 const fs = require('fs');
 const express = require('express');
 const router = express.Router();
@@ -107,6 +107,7 @@ const path = require('path');
 const PImage = require('pureimage');
 const Jimp = require('jimp');
 const { v4: uuidv4 } = require('uuid');
+const { createCanvas, loadImage, registerFont } = require('canvas');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
@@ -244,77 +245,14 @@ NEVER say you're an AI. Stay in character.`.trim();
         res.status(500).json({ error: "AI agent failed to respond." });
     }
 });
-router.post('/Gcard', async (req, res) => {
-    const { name, description, photoUrl } = req.body;
-
-    try {
-        // 读取用户头像
-        const avatar = await Jimp.read(photoUrl);
-        avatar.resize(120, 120); // 缩小一点
-
-        // 创建画布
-        const width = 400;
-        const height = 600;
-        const img = PImage.make(width, height);
-        const ctx = img.getContext('2d');
-
-        // 背景
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, width, height);
-
-        // 头像
-        const buffer = await avatar.getBufferAsync(Jimp.MIME_PNG);
-        const avatarImg = await PImage.decodePNGFromStream(BufferToStream(buffer));
-        ctx.drawImage(avatarImg, 140, 40); // 居中
-
-        // 使用默认字体（系统 fallback 字体）
-        ctx.fillStyle = '#333';
-        ctx.font = '24pt sans-serif';  // ✅ 不再加载任何文件
-        ctx.fillText(name || 'Anonymous', 50, 200);
-
-        ctx.font = '18pt sans-serif';
-        drawMultilineText(ctx, description || '', 50, 250, 300, 24);
-
-        // 检查 cards 文件夹存在性
-        const cardsDir = path.join(__dirname, '../cards');
-        if (!fs.existsSync(cardsDir)) {
-            fs.mkdirSync(cardsDir, { recursive: true });
-        }
-
-        const fileName = `card_${uuidv4()}.png`;
-        const filePath = path.join(cardsDir, fileName);
-        const out = fs.createWriteStream(filePath);
-
-        await PImage.encodePNGToStream(img, out);
-
-        out.on('finish', () => {
-            res.json({ url: `https://ccbackendx-2.onrender.com/cards/${fileName}` });
-        });
-
-    } catch (err) {
-        console.error('生成失败:', err);
-        res.status(500).json({ error: 'Card generation failed' });
-    }
-});
-
-
-// 把 buffer 变成 stream 的工具函数
-function BufferToStream(buffer) {
-    const stream = require('stream');
-    const duplex = new stream.Duplex();
-    duplex.push(buffer);
-    duplex.push(null);
-    return duplex;
-}
-
-// 支持自动换行写字
-function drawMultilineText(ctx, text, x, y, maxWidth, lineHeight) {
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     const words = text.split(' ');
     let line = '';
+
     for (let i = 0; i < words.length; i++) {
         const testLine = line + words[i] + ' ';
-        const width = ctx.measureText(testLine).width;
-        if (width > maxWidth && i > 0) {
+        const testWidth = ctx.measureText(testLine).width;
+        if (testWidth > maxWidth && i > 0) {
             ctx.fillText(line, x, y);
             line = words[i] + ' ';
             y += lineHeight;
@@ -324,5 +262,75 @@ function drawMultilineText(ctx, text, x, y, maxWidth, lineHeight) {
     }
     ctx.fillText(line, x, y);
 }
+
+router.post('/Gcard', async (req, res) => {
+    const { name, description, photoUrl } = req.body;
+    if (!photoUrl) return res.status(400).json({ error: 'Missing photoUrl' });
+
+    try {
+        const width = 400;
+        const height = 600;
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+
+        // 背景
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
+
+        // 头像
+        const avatar = await loadImage(photoUrl);
+        const avatarSize = 120;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(width / 2, 100, avatarSize / 2, 0, Math.PI * 2, true);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(avatar, width / 2 - avatarSize / 2, 100 - avatarSize / 2, avatarSize, avatarSize);
+        ctx.restore();
+
+        // 姓名
+        ctx.fillStyle = '#222';
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(name || 'Anonymous', width / 2, 180);
+
+        // 描述
+        ctx.font = '18px sans-serif';
+        ctx.textAlign = 'left';
+        wrapText(ctx, description || '', 40, 220, 320, 26);
+
+        // 导出 PNG 到 buffer
+        const buffer = canvas.toBuffer('image/png');
+        const filename = `card_${uuidv4()}.png`;
+
+        // 上传到 Cloudinary
+        const uploadResponse = await cloudinary.uploader.upload_stream(
+            {
+                folder: 'cards',
+                public_id: filename.replace('.png', ''),
+                resource_type: 'image'
+            },
+            (error, result) => {
+                if (error) {
+                    console.error('❌ Cloudinary upload error:', error);
+                    return res.status(500).json({ error: 'Upload to Cloudinary failed' });
+                }
+                return res.json({ url: result.secure_url });
+            }
+        );
+
+        // 必须转 buffer 成 stream 才能上传
+        const { Duplex } = require('stream');
+        const stream = new Duplex();
+        stream.push(buffer);
+        stream.push(null);
+        stream.pipe(uploadResponse);
+
+    } catch (err) {
+        console.error('❌ Card generation failed:', err);
+        res.status(500).json({ error: 'Card generation failed' });
+    }
+});
+
 
 module.exports = router;
