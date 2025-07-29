@@ -511,6 +511,7 @@ router.post("/preference", async (req, res) => {
 
              distance || 0,
             photo_urls || null,
+            user_id
 
         ]);
 
