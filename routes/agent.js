@@ -74,7 +74,8 @@ async function generateCard({ name, photoUrl, description }, outputPath) {
         const g = this.bitmap.data[idx + 1];
         const b = this.bitmap.data[idx + 2];
         const a = this.bitmap.data[idx + 3];
-        ctx.setPixelColor(PImage.makeRGBA(r, g, b, a), 80 + x, 80 + y);
+        ctx.setPixelColor(PImage.rgbaToInt(r, g, b, a), 80 + x, 80 + y);
+
     });
 
     // 6. 保存输出
