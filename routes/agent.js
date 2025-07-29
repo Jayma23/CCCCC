@@ -265,80 +265,54 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 
 router.post('/Gcard', async (req, res) => {
     const { name, description, photoUrl } = req.body;
-    if (!photoUrl) return res.status(400).json({ error: 'Missing photoUrl' });
 
     try {
+        // 加载头像
+        const avatar = await Jimp.read(photoUrl);
+        avatar.resize(120, 120);
+        const buffer = await avatar.getBufferAsync(Jimp.MIME_PNG);
+        const avatarImg = await PImage.decodePNGFromStream(BufferToStream(buffer));
+
+        // 创建卡牌画布
         const width = 400;
         const height = 600;
-        const canvas = createCanvas(width, height);
-        const ctx = canvas.getContext('2d');
+        const img = PImage.make(width, height);
+        const ctx = img.getContext('2d');
 
-        // 背景
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, width, height);
 
-        // 头像
-        const avatar = await loadImage(photoUrl);
-        const avatarSize = 120;
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(width / 2, 100, avatarSize / 2, 0, Math.PI * 2, true);
-        ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(avatar, width / 2 - avatarSize / 2, 100 - avatarSize / 2, avatarSize, avatarSize);
-        ctx.restore();
+        ctx.drawImage(avatarImg, 140, 40);
 
-        // 姓名
-        ctx.fillStyle = '#222';
-        ctx.font = '24px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(name || 'Anonymous', width / 2, 180);
+        ctx.fillStyle = '#333';
+        ctx.font = '24pt Arial';
+        ctx.fillText(name || 'Anonymous', 50, 200);
 
-        // 描述
-        ctx.font = '18px sans-serif';
-        ctx.textAlign = 'left';
-        wrapText(ctx, description || '', 40, 220, 320, 26);
+        ctx.font = '18pt Arial';
+        drawMultilineText(ctx, description || '', 50, 250, 300, 24);
 
-        // 导出 PNG 到 buffer
-        const buffer = canvas.toBuffer('image/png');
-        const filename = `card_${uuidv4()}.png`;
-        const cloudinary = require('cloudinary').v2;
-        require('dotenv').config();
-
-        cloudinary.config({
-            cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-            api_key: process.env.CLOUDINARY_API_KEY,
-            api_secret: process.env.CLOUDINARY_API_SECRET
-        });
-
-        // 上传到 Cloudinary
-        const uploadResponse = await cloudinary.uploader.upload_stream(
-            {
-                folder: 'cards',
-                public_id: filename.replace('.png', ''),
-                resource_type: 'image'
-            },
-            (error, result) => {
-                if (error) {
-                    console.error('❌ Cloudinary upload error:', error);
-                    return res.status(500).json({ error: 'Upload to Cloudinary failed' });
-                }
-                return res.json({ url: result.secure_url });
-            }
-        );
-
-        // 必须转 buffer 成 stream 才能上传
-        const { Duplex } = require('stream');
-        const stream = new Duplex();
-        stream.push(buffer);
-        stream.push(null);
-        stream.pipe(uploadResponse);
-
+        // ✅ 将图片编码为 Buffer 并直接发送到前端
+        const stream = await encodePNGToBuffer(img);
+        res.setHeader('Content-Type', 'image/png');
+        res.send(stream);
     } catch (err) {
-        console.error('❌ Card generation failed:', err);
+        console.error('生成失败:', err);
         res.status(500).json({ error: 'Card generation failed' });
     }
 });
+function encodePNGToBuffer(img) {
+    const stream = require('stream');
+    const bufferStream = new stream.PassThrough();
+    const chunks = [];
+
+    return new Promise((resolve, reject) => {
+        bufferStream.on('data', (chunk) => chunks.push(chunk));
+        bufferStream.on('end', () => resolve(Buffer.concat(chunks)));
+        bufferStream.on('error', reject);
+
+        PImage.encodePNGToStream(img, bufferStream).catch(reject);
+    });
+}
 
 
 module.exports = router;
