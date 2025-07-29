@@ -55,7 +55,7 @@ async function generateCard({ name, photoUrl, description }, outputPath) {
 
     // 3. 写文字（名字）
 
-    
+
     ctx.font = '32pt OpenSans';
     ctx.fillStyle = '#222';
     ctx.fillText(`Your date: ${name}`, 280, 120);
@@ -104,6 +104,7 @@ const OpenAI = require('openai');
 require('dotenv').config();
 const path = require('path');
 const PImage = require('pureimage');
+const Jimp = require('jimp');
 
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
