@@ -245,42 +245,77 @@ NEVER say you're an AI. Stay in character.`.trim();
     }
 });
 router.post('/Gcard', async (req, res) => {
-    const { name, photoUrl, description } = req.body;
-    if (!name || !photoUrl || !description) {
-        return res.status(400).json({ error: 'Missing fields' });
-    }
-
-    const filename = `card_${Date.now()}.png`;
-    const outputPath = path.join(__dirname, '..', 'cards', filename);
+    const { name, description, photoUrl } = req.body;
 
     try {
-        await generateCard({ name, photoUrl, description }, outputPath);
-        res.status(200).json({
-            message: 'Card generated',
-            imageUrl: `/cards/${filename}`
+        // 读取用户头像
+        const avatar = await Jimp.read(photoUrl);
+        avatar.resize(120, 120); // 缩小一点
+
+        // 创建画布
+        const width = 400;
+        const height = 600;
+        const img = PImage.make(width, height);
+        const ctx = img.getContext('2d');
+
+        // 背景
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
+
+        // 把头像画上去
+        const buffer = await avatar.getBufferAsync(Jimp.MIME_PNG);
+        const avatarImg = await PImage.decodePNGFromStream(BufferToStream(buffer));
+        ctx.drawImage(avatarImg, 140, 40); // 居中
+
+        // 写名字
+        ctx.fillStyle = '#333';
+        ctx.font = '24pt Arial';
+        ctx.fillText(name || 'Anonymous', 50, 200);
+
+        // 写描述
+        ctx.font = '18pt Arial';
+        drawMultilineText(ctx, description || '', 50, 250, 300, 24);
+
+        // 保存
+        const fileName = `card_${uuidv4()}.png`;
+        const filePath = path.join(__dirname, `../cards/${fileName}`);
+        const out = fs.createWriteStream(filePath);
+        await PImage.encodePNGToStream(img, out);
+
+        out.on('finish', () => {
+            res.json({ url: `https://your-server.com/cards/${fileName}` });
         });
     } catch (err) {
-        console.error('卡片生成失败:', err);
-        res.status(500).json({ error: 'Generation failed' });
+        console.error('生成失败:', err);
+        res.status(500).json({ error: 'Card generation failed' });
     }
 });
-function wrapText(ctx, text, maxWidth) {
-    const words = text.split(' ');
-    const lines = [];
-    let currentLine = words[0];
 
-    for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const width = ctx.measureText(currentLine + ' ' + word).width;
-        if (width < maxWidth) {
-            currentLine += ' ' + word;
+// 把 buffer 变成 stream 的工具函数
+function BufferToStream(buffer) {
+    const stream = require('stream');
+    const duplex = new stream.Duplex();
+    duplex.push(buffer);
+    duplex.push(null);
+    return duplex;
+}
+
+// 支持自动换行写字
+function drawMultilineText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    for (let i = 0; i < words.length; i++) {
+        const testLine = line + words[i] + ' ';
+        const width = ctx.measureText(testLine).width;
+        if (width > maxWidth && i > 0) {
+            ctx.fillText(line, x, y);
+            line = words[i] + ' ';
+            y += lineHeight;
         } else {
-            lines.push(currentLine);
-            currentLine = word;
+            line = testLine;
         }
     }
-    lines.push(currentLine);
-    return lines;
+    ctx.fillText(line, x, y);
 }
 
 module.exports = router;
