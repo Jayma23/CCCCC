@@ -106,7 +106,7 @@ require('dotenv').config();
 const path = require('path');
 const PImage = require('pureimage');
 const Jimp = require('jimp');
-
+const { v4: uuidv4 } = require('uuid');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
