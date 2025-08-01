@@ -25,6 +25,12 @@ const pinecone = new Pinecone({
 });
 
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
+router.get('/cloudinary', (req, res) => {
+    res.json({
+        uploadUrl: process.env.CLOUDINARY_UPLOAD_URL,
+        uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET
+    });
+});
 
 router.post("/submit-responses", async (req, res) => {
     console.log('📥 Incoming profile data:', req.body);
