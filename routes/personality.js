@@ -49,7 +49,7 @@ router.post("/submit-responses", async (req, res) => {
         height,
         orientation,
         photo_urls = [],
-        selected_cards,
+
         primary_index = 0
     } = req.body;
 
@@ -72,8 +72,8 @@ router.post("/submit-responses", async (req, res) => {
                 sexual_orientation = $6,
                 height = $7,
                 form_submitted = true,
-                selected_cards = $8
-            WHERE id = $9
+                
+            WHERE id = $8
         `;
 
         await pool.query(updateUserQuery, [
@@ -85,7 +85,7 @@ router.post("/submit-responses", async (req, res) => {
             orientation || null,
             height || null,
             user_id,
-            selected_cards || null
+
         ]);
 
         // ✅ Step 2: 删除旧照片记录
