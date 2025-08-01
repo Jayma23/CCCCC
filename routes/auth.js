@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const {use} = require("../app");
-use(express.json());
+//use(express.json());
 //const { Configuration, OpenAIApi } = require('openai');
 
 
