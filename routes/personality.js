@@ -6,7 +6,6 @@ require("dotenv").config();
 const express = require("express");
 const router = express.Router();
 
-
 // PostgreSQL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -26,9 +25,16 @@ const pinecone = new Pinecone({
 
 const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
 router.get('/cloudinary', (req, res) => {
+    const uploadUrl = process.env.CLOUDINARY_UPLOAD_URL;
+    const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET;
+
+    if (!uploadUrl || !uploadPreset) {
+        return res.status(500).json({ error: 'Missing Cloudinary config' });
+    }
+
     res.json({
-        uploadUrl: process.env.CLOUDINARY_UPLOAD_URL,
-        uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET
+        uploadUrl,
+        uploadPreset
     });
 });
 
