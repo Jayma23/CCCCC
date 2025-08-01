@@ -71,8 +71,7 @@ router.post("/submit-responses", async (req, res) => {
                 photo = $5,
                 sexual_orientation = $6,
                 height = $7,
-                form_submitted = true,
-                
+                form_submitted = true 
             WHERE id = $8
         `;
 
