@@ -193,6 +193,52 @@ NEVER say you're an AI. Stay in character.`.trim();
         res.status(500).json({ error: "AI agent failed to respond." });
     }
 });
+async function extractFaceEmbedding(photoUrl) {
+    const res = await fetch("http://127.0.0.1:8000/extract_main_face_embedding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: photoUrl }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.embedding) {
+        throw new Error(data.error || 'Failed to extract embedding');
+    }
+
+    return data.embedding;
+}
+router.post("/generate-embedding", async (req, res) => {
+    const { user_id } = req.body;
+
+    if (!user_id) return res.status(400).json({ error: "Missing user_id" });
+
+    try {
+        // 从 users 表中获取主图 URL
+        const result = await pool.query("SELECT user_photos FROM users WHERE id = $1", [user_id]);
+        const photoUrl = result.rows[0]?.photo;
+
+        if (!photoUrl) {
+            return res.status(400).json({ error: "No photo found for this user" });
+        }
+
+        // 提取 face embedding（通过本地 Python API）
+        const embedding = await extractFaceEmbedding(photoUrl);
+
+        // 存入 Pinecone（注意命名空间和 ID）
+        await pinecone.upsert([
+            {
+                id: `user-${user_id}`,
+                values: embedding,
+                metadata: { user_id }
+            }
+        ], 'face-embeddings'); // 可加 namespace 参数
+
+        res.json({ message: "✅ Face embedding saved successfully" });
+    } catch (err) {
+        console.error("❌ Failed to generate embedding:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
 
 
 module.exports = router;

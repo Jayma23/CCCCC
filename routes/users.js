@@ -2,9 +2,31 @@ const express = require('express');
 const router = express.Router();
 const OpenAI = require("openai");
 const { onlineUsers } = require('../bin/www');
+const WebSocket = require('ws');
+const http = require("http");
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
 // ✅ 新版 SDK 初始化方式
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
+});
+wss.on("connection", (ws) => {
+  console.log("Client connected via WebSocket");
+
+  ws.on("message", (msg) => {
+    console.log("Received:", msg.toString());
+    // 可以加 broadcast、在线状态等逻辑
+  });
+
+  ws.on("close", () => {
+    console.log("Client disconnected");
+  });
+});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server + WebSocket listening on port ${PORT}`);
 });
 
 // 🚀 智能回复建议路由

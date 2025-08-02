@@ -7,6 +7,10 @@ const cors = require('cors');
 const agentRouter = require('./routes/agent');
 const authRouter = require('./routes/auth');
 
+const http = require("http");
+
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 const app = express();
 
 app.use(logger('dev'));

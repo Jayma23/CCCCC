@@ -20,6 +20,8 @@ var server = http.createServer(app);
 /**
  * Create HTTP server.
  */
+
+
 var io = socketIO(server, {
   cors: {
     origin: '*',  // 上线时改为指定域名
