@@ -128,7 +128,7 @@ Guidelines:
     });
   }
 });
-router.get('/user/:userId/online-status', (req, res) => {
+router.get('/:userId/online-status', (req, res) => {
   const { userId } = req.params;
   const isOnline = onlineUsers.has(userId);
   res.json({ userId, isOnline });

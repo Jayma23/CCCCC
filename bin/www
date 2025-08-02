@@ -17,93 +17,23 @@ const { Pool } = require('pg');
 var port = normalizePort(process.env.PORT || '8080');
 app.set('port', port);
 var server = http.createServer(app);
+
 /**
  * Create HTTP server.
  */
 
-
-var io = socketIO(server, {
-  cors: {
-    origin: '*',  // 上线时改为指定域名
-    methods: ['GET', 'POST']
-  }
-});
-const onlineUsers = new Map();
+const { setupSocket } = require('./socket');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
+setupSocket(server, pool);
+
+
 /**
  * Listen on provided port, on all network interfaces.
  */
-io.on('connection', (socket) => {
-  console.log('✅ New client connected', socket.id);
-
-  socket.on('register', (userId) => {
-    onlineUsers.set(userId, socket.id);
-    console.log(`User ${userId} registered on socket`);
-  });
-
-  socket.on('send_message', async (data) => {
-    const { chat_id, sender_id, receiver_id, content } = data;
-    console.log('📩 Message from', sender_id, 'to', receiver_id, content);
-
-    try {
-      // 1. 存入 chat_messages 表
-      await pool.query(`
-            INSERT INTO chat_messages (chat_id, sender_id, message)
-            VALUES ($1, $2, $3)
-        `, [chat_id, sender_id, content]);
-
-      // 2. 更新 chat_rooms 最后更新时间
-      await pool.query(`
-            UPDATE chat_rooms SET last_updated = NOW() WHERE id = $1
-        `, [chat_id]);
-
-      // 3. 广播消息
-      const payload = {
-        chat_id,
-        sender_id,
-        content,
-        timestamp: new Date().toISOString()
-      };
-
-      const receiverSocket = onlineUsers.get(receiver_id);
-      if (receiverSocket) {
-        io.to(receiverSocket).emit('receive_message', payload);
-      }
-
-      socket.emit('receive_message', payload);
-
-    } catch (err) {
-      console.error('send_message error:', err);
-    }
-  });
-
-
-
-  socket.on('typing', ({ receiver_id }) => {
-    const receiverSocket = onlineUsers.get(receiver_id);
-    if (receiverSocket) {
-      io.to(receiverSocket).emit('typing', { timestamp: Date.now() });
-    }
-  });
-
-  socket.on('disconnect', () => {
-    console.log('❌ Client disconnected', socket.id);
-    for (const [userId, sId] of onlineUsers.entries()) {
-      if (sId === socket.id) {
-        onlineUsers.delete(userId);
-        console.log(`User ${userId} went offline`);
-        break;
-      }
-    }
-  });
-});
-server.listen(port);
-server.on('error', onError);
-server.on('listening', onListening);
 
 /**
  * Normalize a port into a number, string, or false.
