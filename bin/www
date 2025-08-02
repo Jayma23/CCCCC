@@ -29,7 +29,9 @@ const pool = new Pool({
 });
 
 setupSocket(server, pool);
-
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
 
 /**
  * Listen on provided port, on all network interfaces.
