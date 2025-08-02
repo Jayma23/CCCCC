@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const OpenAI = require("openai");
-const { onlineUsers } = require('../bin/www');
+const { onlineUsers } = require('../socket');
 const WebSocket = require('ws');
 const http = require("http");
 const app = express();
