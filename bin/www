@@ -22,7 +22,7 @@ var server = http.createServer(app);
  * Create HTTP server.
  */
 
-const { setupSocket } = require('./socket');
+const { setupSocket } = require('../socket');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
