@@ -49,39 +49,13 @@ router.get('/messages/:chat_id', async (req, res) => {
 
     try {
         // 读取 chat_rooms 表中双方的 delete_before 字段
-        const chatRes = await pool.query(`
-            SELECT user1_id, user2_id, delete_before_sender, delete_before_receiver
-            FROM chat_rooms
-            WHERE id = $1
-        `, [chat_id]);
-
-        if (chatRes.rows.length === 0) {
-            return res.status(404).json({ error: 'Chat room not found' });
-        }
-
-        const chat = chatRes.rows[0];
-        let deletedBefore = null;
-
-        // 判断当前用户是 user1 还是 user2，选择对应的 delete_before 字段
-        if (parseInt(user_id) === chat.user1_id) {
-            deletedBefore = chat.delete_before_sender;
-        } else if (parseInt(user_id) === chat.user2_id) {
-            deletedBefore = chat.delete_before_receiver;
-        }
 
         // 查询消息
         let messagesQuery = `
             SELECT * FROM chat_messages
             WHERE chat_id = $1
         `;
-        const queryParams = [chat_id];
-
-        if (deletedBefore) {
-            messagesQuery += ` AND timestamp > $2`;
-            queryParams.push(deletedBefore);
-        }
-
-        messagesQuery += ` ORDER BY timestamp ASC`;
+        
 
         const messages = await pool.query(messagesQuery, queryParams);
 
