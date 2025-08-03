@@ -41,17 +41,45 @@ router.post('/create-or-get-room', async (req, res) => {
 // 加载聊天记录
 router.get('/messages/:chat_id', async (req, res) => {
     const { chat_id } = req.params;
-    try {
-        const result = await pool.query(`
+    const user_id = req.query.user_id;
+
+    const deletionRes = await pool.query(`
+      SELECT deleted_before FROM chat_deletion_marks
+      WHERE chat_id = $1 AND user_id = $2
+    `, [chat_id, user_id]);
+
+    const deletedBefore = deletionRes.rows[0]?.deleted_before;
+
+    let messagesQuery = `
       SELECT * FROM chat_messages
       WHERE chat_id = $1
-      ORDER BY timestamp ASC
-    `, [chat_id]);
-        res.json({ messages: result.rows });
-    } catch (err) {
-        console.error('get messages error:', err);
-        res.status(500).json({ error: 'Server error' });
+    `;
+
+    const queryParams = [chat_id];
+
+    if (deletedBefore) {
+        messagesQuery += ` AND timestamp > $2`;
+        queryParams.push(deletedBefore);
     }
+
+    messagesQuery += ` ORDER BY timestamp ASC`;
+
+    const messages = await pool.query(messagesQuery, queryParams);
+
+    res.json(messages.rows);
+});
+router.post('/mark-delete', async (req, res) => {
+    const { chat_id, user_id } = req.body;
+    const now = new Date();
+
+    await pool.query(`
+      INSERT INTO chat_deletion_marks (chat_id, user_id, deleted_before)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (chat_id, user_id) DO UPDATE
+      SET deleted_before = EXCLUDED.deleted_before
+    `, [chat_id, user_id, now]);
+
+    res.json({ success: true });
 });
 
 // 发消息
