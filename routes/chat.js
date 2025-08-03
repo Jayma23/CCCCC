@@ -48,34 +48,32 @@ router.get('/messages/:chat_id', async (req, res) => {
     }
 
     try {
-        // 获取聊天记录的 delete_before 字段
+        // 读取 chat_rooms 表中双方的 delete_before 字段
         const chatRes = await pool.query(`
-      SELECT user1_id, user2_id, delete_before_sender, delete_before_receiver
-      FROM chat_rooms
-      WHERE id = $1
-    `, [chat_id]);
+            SELECT user1_id, user2_id, delete_before_sender, delete_before_receiver
+            FROM chat_rooms
+            WHERE id = $1
+        `, [chat_id]);
 
         if (chatRes.rows.length === 0) {
             return res.status(404).json({ error: 'Chat room not found' });
         }
 
         const chat = chatRes.rows[0];
-
-        // 判断当前用户是谁
         let deletedBefore = null;
+
+        // 判断当前用户是 user1 还是 user2，选择对应的 delete_before 字段
         if (parseInt(user_id) === chat.user1_id) {
             deletedBefore = chat.delete_before_sender;
         } else if (parseInt(user_id) === chat.user2_id) {
             deletedBefore = chat.delete_before_receiver;
-        } else {
-            return res.status(403).json({ error: 'User not part of this chat room' });
         }
 
-        // 构建消息查询
+        // 查询消息
         let messagesQuery = `
-      SELECT * FROM chat_messages
-      WHERE chat_id = $1
-    `;
+            SELECT * FROM chat_messages
+            WHERE chat_id = $1
+        `;
         const queryParams = [chat_id];
 
         if (deletedBefore) {
@@ -85,12 +83,13 @@ router.get('/messages/:chat_id', async (req, res) => {
 
         messagesQuery += ` ORDER BY timestamp ASC`;
 
-        const messagesRes = await pool.query(messagesQuery, queryParams);
+        const messages = await pool.query(messagesQuery, queryParams);
 
-        res.json(messagesRes.rows);
-    } catch (error) {
-        console.error('Error fetching messages:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.json(messages.rows);
+
+    } catch (err) {
+        console.error('Error fetching messages:', err);
+        res.status(500).json({ error: 'Server error' });
     }
 });
 router.post('/mark-delete', async (req, res) => {
