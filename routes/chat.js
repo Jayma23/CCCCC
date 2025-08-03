@@ -48,19 +48,12 @@ router.get('/messages/:chat_id', async (req, res) => {
     }
 
     try {
-        // 读取 chat_rooms 表中双方的 delete_before 字段
-
-        // 查询消息
-        let messagesQuery = `
-            SELECT * FROM chat_messages
-            WHERE chat_id = $1
-        `;
-        
-
-        const messages = await pool.query(messagesQuery, queryParams);
+        const messages = await pool.query(
+            `SELECT * FROM chat_messages WHERE chat_id = $1 ORDER BY timestamp ASC`,
+            [chat_id]
+        );
 
         res.json(messages.rows);
-
     } catch (err) {
         console.error('Error fetching messages:', err);
         res.status(500).json({ error: 'Server error' });
