@@ -41,21 +41,15 @@ router.post('/create-or-get-room', async (req, res) => {
 // 加载聊天记录
 router.get('/messages/:chat_id', async (req, res) => {
     const { chat_id } = req.params;
-
+    try {
+        const result = await pool.query('SELECT * FROM chat_messages WHERE chat_id = $1 ORDER BY timestamp ASC',[chat_id]);
+        res.json({ messages: result.rows });
+    } catch (err) {
+        console.error('get messages error:', err);
+        res.status(500).json({error: 'Server error'});
+    }
 
     
-
-    try {
-        const messages = await pool.query(
-            `SELECT * FROM chat_messages WHERE chat_id = $1 ORDER BY timestamp ASC`,
-            [chat_id]
-        );
-
-        res.json(messages.rows);
-    } catch (err) {
-        console.error('Error fetching messages:', err);
-        res.status(500).json({ error: 'Server error' });
-    }
 });
 
 
