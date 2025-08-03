@@ -44,7 +44,7 @@ router.get('/messages/:chat_id', async (req, res) => {
     const user_id = req.query.user_id;
 
     const deletionRes = await pool.query(`
-      SELECT deleted_before FROM chat_deletion_marks
+      SELECT deleted_before FROM chat_rooms
       WHERE chat_id = $1 AND user_id = $2
     `, [chat_id, user_id]);
 
