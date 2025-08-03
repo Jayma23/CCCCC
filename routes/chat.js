@@ -43,30 +43,55 @@ router.get('/messages/:chat_id', async (req, res) => {
     const { chat_id } = req.params;
     const user_id = req.query.user_id;
 
-    const deletionRes = await pool.query(`
-      SELECT deleted_before FROM chat_rooms
-      WHERE chat_id = $1 AND user_id = $2
-    `, [chat_id, user_id]);
+    if (!user_id) {
+        return res.status(400).json({ error: 'user_id is required' });
+    }
 
-    const deletedBefore = deletionRes.rows[0]?.deleted_before;
+    try {
+        // 获取聊天记录的 delete_before 字段
+        const chatRes = await pool.query(`
+      SELECT user1_id, user2_id, delete_before_sender, delete_before_receiver
+      FROM chat_rooms
+      WHERE id = $1
+    `, [chat_id]);
 
-    let messagesQuery = `
+        if (chatRes.rows.length === 0) {
+            return res.status(404).json({ error: 'Chat room not found' });
+        }
+
+        const chat = chatRes.rows[0];
+
+        // 判断当前用户是谁
+        let deletedBefore = null;
+        if (parseInt(user_id) === chat.user1_id) {
+            deletedBefore = chat.delete_before_sender;
+        } else if (parseInt(user_id) === chat.user2_id) {
+            deletedBefore = chat.delete_before_receiver;
+        } else {
+            return res.status(403).json({ error: 'User not part of this chat room' });
+        }
+
+        // 构建消息查询
+        let messagesQuery = `
       SELECT * FROM chat_messages
       WHERE chat_id = $1
     `;
+        const queryParams = [chat_id];
 
-    const queryParams = [chat_id];
+        if (deletedBefore) {
+            messagesQuery += ` AND timestamp > $2`;
+            queryParams.push(deletedBefore);
+        }
 
-    if (deletedBefore) {
-        messagesQuery += ` AND timestamp > $2`;
-        queryParams.push(deletedBefore);
+        messagesQuery += ` ORDER BY timestamp ASC`;
+
+        const messagesRes = await pool.query(messagesQuery, queryParams);
+
+        res.json(messagesRes.rows);
+    } catch (error) {
+        console.error('Error fetching messages:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
-
-    messagesQuery += ` ORDER BY timestamp ASC`;
-
-    const messages = await pool.query(messagesQuery, queryParams);
-
-    res.json(messages.rows);
 });
 router.post('/mark-delete', async (req, res) => {
     const { chat_id, user_id } = req.body;
