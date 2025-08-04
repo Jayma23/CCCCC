@@ -51,6 +51,18 @@ router.get('/messages/:chat_id', async (req, res) => {
 
     
 });
+router.get('/messages-b/:chat_id', async (req, res) => {
+    const { chat_id } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM chat_messages_b WHERE chat_id = $1 ORDER BY timestamp ASC',[chat_id]);
+        res.json({ messages: result.rows });
+    } catch (err) {
+        console.error('get messages error:', err);
+        res.status(500).json({error: 'Server error'});
+    }
+
+
+});
 
 
 // 发消息
@@ -62,6 +74,26 @@ router.post('/send-message', async (req, res) => {
     try {
         await pool.query(`
             INSERT INTO chat_messages (chat_id, sender_id, message)
+            VALUES ($1, $2, $3)
+        `, [chat_id, sender_id, content]);
+
+        await pool.query(`
+  UPDATE chat_rooms SET last_updated = NOW() WHERE id = $1
+`, [chat_id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('send-message error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+router.post('/send-message-b', async (req, res) => {
+    const { chat_id, sender_id, content } = req.body;
+    if (!chat_id || !sender_id || !content)
+        return res.status(400).json({ error: 'Missing fields' });
+
+    try {
+        await pool.query(`
+            INSERT INTO chat_messages_b (chat_id, sender_id, message)
             VALUES ($1, $2, $3)
         `, [chat_id, sender_id, content]);
 
