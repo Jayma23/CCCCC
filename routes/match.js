@@ -441,8 +441,8 @@ async function saveMatchRecord(user1_id, user2_id, matchScore, matchAnalysis) {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_matches (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user1_id UUID NOT NULL,
-                user2_id UUID NOT NULL,
+                user1_id INTEGER NOT NULL,
+                user2_id INTEGER NOT NULL,
                 match_score INTEGER NOT NULL,
                 score_breakdown JSONB,
                 match_analysis TEXT,

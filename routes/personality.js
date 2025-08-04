@@ -910,7 +910,7 @@ async function saveUserCompleteProfile(user_id, userData, vector, embeddingText)
         // 创建或更新用户完整档案表
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_complete_profiles (
-                user_id UUID PRIMARY KEY,
+                user_id integer PRIMARY KEY,
                 name VARCHAR(255),
                 age INTEGER,
                 gender VARCHAR(50),
