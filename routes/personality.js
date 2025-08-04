@@ -869,39 +869,45 @@ async function getUserCompleteData(user_id) {
 function generateEmbeddingText(userData) {
     const sections = [
         // 基本信息
-        `Name: ${userData.name}`,
-        `Age: ${userData.age}`,
-        `Gender: ${userData.gender}`,
-        `Orientation: ${userData.orientation}`,
-        `Height: ${userData.height}`,
-        `MBTI: ${userData.mbti || 'Not specified'}`,
+        userData.name ? `Name: ${userData.name}` : null,
+        userData.age ? `Age: ${userData.age}` : null,
+        userData.gender ? `Gender: ${userData.gender}` : null,
+        userData.orientation ? `Orientation: ${userData.orientation}` : null,
+        userData.height ? `Height: ${userData.height}` : null,
+        userData.mbti ? `MBTI: ${userData.mbti}` : null,
         
         // 个性描述
-        `About me: ${userData.about_me}`,
-        `Hobbies: ${userData.hobbies}`,
-        `Lifestyle: ${userData.lifestyle}`,
-        `Values: ${userData.values}`,
-        `Future goals: ${userData.future_goals}`,
-        `Perfect date: ${userData.perfect_date}`,
+        userData.about_me ? `About me: ${userData.about_me}` : null,
+        userData.hobbies ? `Hobbies: ${userData.hobbies}` : null,
+        userData.lifestyle ? `Lifestyle: ${userData.lifestyle}` : null,
+        userData.values ? `Values: ${userData.values}` : null,
+        userData.future_goals ? `Future goals: ${userData.future_goals}` : null,
+        userData.perfect_date ? `Perfect date: ${userData.perfect_date}` : null,
         
         // 偏好和标志
-        `Green flags: ${userData.green_flags}`,
-        `Red flags: ${userData.red_flags}`,
-        `Physical attraction traits: ${userData.physical_attraction_traits}`,
+        userData.green_flags ? `Green flags: ${userData.green_flags}` : null,
+        userData.red_flags ? `Red flags: ${userData.red_flags}` : null,
+        userData.physical_attraction_traits ? `Physical attraction traits: ${userData.physical_attraction_traits}` : null,
         
         // 约会偏好
-        `Interested in: ${userData.interested_in_genders.join(', ')}`,
-        `Dating intentions: ${userData.dating_intentions.join(', ')}`,
-        `Preferred areas: ${userData.preferred_areas.join(', ')}`,
-        `Age range: ${userData.age_range[0]}-${userData.age_range[1]}`,
-        `Ethnicity attraction: ${userData.ethnicity_attraction.join(', ')}`,
+        userData.interested_in_genders && userData.interested_in_genders.length > 0 ? 
+            `Interested in: ${userData.interested_in_genders.join(', ')}` : null,
+        userData.dating_intentions && userData.dating_intentions.length > 0 ? 
+            `Dating intentions: ${userData.dating_intentions.join(', ')}` : null,
+        userData.preferred_areas && userData.preferred_areas.length > 0 ? 
+            `Preferred areas: ${userData.preferred_areas.join(', ')}` : null,
+        userData.age_range && userData.age_range.length === 2 ? 
+            `Age range: ${userData.age_range[0]}-${userData.age_range[1]}` : null,
+        userData.ethnicity_attraction && userData.ethnicity_attraction.length > 0 ? 
+            `Ethnicity attraction: ${userData.ethnicity_attraction.join(', ')}` : null,
         
         // 个人特征
-        `Extroversion score: ${userData.extroversion_score}/10`,
-        `Ethnicity: ${userData.ethnicity.join(', ')}`
+        userData.extroversion_score ? `Extroversion score: ${userData.extroversion_score}/10` : null,
+        userData.ethnicity && userData.ethnicity.length > 0 ? 
+            `Ethnicity: ${userData.ethnicity.join(', ')}` : null
     ];
 
-    return sections.filter(section => section.split(': ')[1] && section.split(': ')[1] !== '').join('. ');
+    return sections.filter(section => section !== null).join('. ');
 }
 
 // 辅助函数：保存用户完整档案到数据库
@@ -995,15 +1001,17 @@ async function saveUserCompleteProfile(user_id, userData, vector, embeddingText)
                 embedding_vector = EXCLUDED.embedding_vector,
                 updated_at = NOW()
         `, [
-            user_id, userData.name, userData.age, userData.gender, userData.orientation,
-            userData.height, userData.mbti, userData.photo, JSON.stringify(userData.photos),
-            userData.phone, userData.zip_code, userData.birthday, userData.ethnicity,
-            userData.interested_in_genders, userData.dating_intentions, userData.ethnicity_attraction,
-            userData.preferred_areas, userData.age_range,
-            userData.about_me, userData.hobbies, userData.lifestyle, userData.values,
-            userData.future_goals, userData.perfect_date,
-            userData.green_flags, userData.red_flags, userData.physical_attraction_traits,
-            userData.extroversion_score,
+            user_id, sanitizeValue(userData.name), sanitizeValue(userData.age), sanitizeValue(userData.gender), sanitizeValue(userData.orientation),
+            sanitizeValue(userData.height), sanitizeValue(userData.mbti), sanitizeValue(userData.photo), JSON.stringify(userData.photos || []),
+            sanitizeValue(userData.phone), sanitizeValue(userData.zip_code), 
+            sanitizeValue(userData.birthday), 
+            userData.ethnicity || [],
+            userData.interested_in_genders || [], userData.dating_intentions || [], userData.ethnicity_attraction || [],
+            userData.preferred_areas || [], userData.age_range || [],
+            sanitizeValue(userData.about_me), sanitizeValue(userData.hobbies), sanitizeValue(userData.lifestyle), sanitizeValue(userData.values),
+            sanitizeValue(userData.future_goals), sanitizeValue(userData.perfect_date),
+            sanitizeValue(userData.green_flags), sanitizeValue(userData.red_flags), sanitizeValue(userData.physical_attraction_traits),
+            sanitizeValue(userData.extroversion_score),
             embeddingText, JSON.stringify(vector)
         ]);
 
@@ -1012,6 +1020,17 @@ async function saveUserCompleteProfile(user_id, userData, vector, embeddingText)
         console.error('Error saving user complete profile:', error);
         throw error;
     }
+}
+
+// 辅助函数：处理空值
+function sanitizeValue(value) {
+    if (value === undefined || value === null || value === '') {
+        return null;
+    }
+    if (typeof value === 'string' && value.trim() === '') {
+        return null;
+    }
+    return value;
 }
 
 // 新增：获取用户embedding信息的路由
