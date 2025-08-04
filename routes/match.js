@@ -580,7 +580,7 @@ async function getPotentialMatches(userData, limit) {
         const whereClause = conditions.join(' AND ');
 
         const query = `
-            SELECT DISTINCT u.id, u.name, u.age, u.gender, u.photo, u.mbti
+            SELECT DISTINCT u.id, u.name, u.age, u.gender, u.photo, u.mbti, u.created_at
             FROM users u
             WHERE ${whereClause}
             ORDER BY u.created_at DESC
