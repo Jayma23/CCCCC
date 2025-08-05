@@ -17,6 +17,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/personality', require('./routes/personality'));
 app.use('/match', require('./routes/match'));
+app.use('/matching', require('./routes/matching'));
 app.use('/auth', authRouter);
 app.use('/chat', require('./routes/agent'));
 app.use('/ai', require('./routes/users'));

@@ -1,389 +1,277 @@
-# Smart Matching API User Guide
+# 匹配管理功能 API 文档
 
-## Overview
+## 概述
 
-This API provides intelligent matching functionality for two people, based on comprehensive scoring across multiple dimensions:
-- Basic preference matching (gender, sexual orientation, dating intentions)
-- Age matching
-- Geographic location matching
-- Interest and hobby matching
-- Values matching
-- Embedding similarity (based on AI-generated vectors)
+这个模块提供了完整的匹配管理功能，包括用户绑定、状态管理和约会建议生成。
 
-## API Endpoints
+## 主要功能
 
-### 1. Match Two Users
+### 1. 用户匹配绑定
+当两个用户匹配成功后，将他们绑定在一起，防止他们再出现在其他匹配中。
 
-**Endpoint:** `POST /match/match-two-users`
+### 2. 用户状态管理
+用户可以控制自己的匹配状态（可匹配/不可匹配/已匹配）。
 
-**Function:** Intelligently match two users, calculate match score and generate analysis report
+### 3. 个人总结和约会建议
+为匹配的用户生成个性化的个人总结和约会建议。
 
-**Request Body:**
+## API 端点
+
+### 1. 绑定匹配用户
+
+**POST** `/matching/bind-matched-users`
+
+将两个用户绑定在一起，标记为已匹配。
+
+**请求体：**
 ```json
 {
-    "user1_id": "User 1 ID",
-    "user2_id": "User 2 ID"
+  "user1_id": 1,
+  "user2_id": 2,
+  "match_score": 85,
+  "match_analysis": "这是一个很好的匹配！"
 }
 ```
 
-**Response:**
+**响应：**
 ```json
 {
-    "success": true,
-    "user1_id": "user-123",
-    "user2_id": "user-456",
-    "match_score": {
-        "overall": 85,
-        "breakdown": {
-            "basic_preference": 90,
-            "age": 100,
-            "location": 80,
-            "interests": 75,
-            "values": 85,
-            "embedding": 80,
-            "final": 85
-        }
-    },
-    "match_analysis": "Detailed analysis report...",
-    "timestamp": "2024-01-01T00:00:00.000Z"
+  "success": true,
+  "message": "Users successfully bound together",
+  "user1": {
+    "name": "张三",
+    "photo": "photo_url_1"
+  },
+  "user2": {
+    "name": "李四", 
+    "photo": "photo_url_2"
+  },
+  "match_score": 85,
+  "timestamp": "2024-01-01T12:00:00.000Z"
 }
 ```
 
-### 2. Get User Match History
+### 2. 更新用户匹配状态
 
-**Endpoint:** `GET /match/user-matches/:user_id`
+**PUT** `/matching/update-match-status`
 
-**Function:** Get all match records for a specific user
+更新用户的匹配状态。
 
-**Response:**
+**请求体：**
 ```json
 {
-    "success": true,
-    "user_id": "user-123",
-    "matches": [
-        {
-            "id": "match-uuid",
-            "user1_id": "user-123",
-            "user2_id": "user-456",
-            "match_score": 85,
-            "score_breakdown": {
-                "basic_preference": 90,
-                "age": 100,
-                "location": 80,
-                "interests": 75,
-                "values": 85,
-                "embedding": 80
-            },
-            "match_analysis": "Detailed analysis report...",
-            "created_at": "2024-01-01T00:00:00.000Z",
-            "user1_name": "John Smith",
-            "user2_name": "Sarah Johnson",
-            "user1_photo": "https://example.com/photo1.jpg",
-            "user2_photo": "https://example.com/photo2.jpg"
-        }
-    ]
+  "user_id": 1,
+  "match_status": "unavailable"
 }
 ```
 
-### 3. Get Best Match Recommendations
+**可用的状态值：**
+- `available`: 可匹配
+- `unavailable`: 不可匹配  
+- `matched`: 已匹配
 
-**Endpoint:** `GET /match/best-matches/:user_id?limit=10`
-
-**Function:** Get the best match recommendation list for a specific user
-
-**Parameters:**
-- `limit`: Number of recommendations to return (default 10)
-
-**Response:**
+**响应：**
 ```json
 {
-    "success": true,
-    "user_id": "user-123",
-    "matches": [
-        {
-            "user": {
-                "user_id": "user-456",
-                "name": "Sarah Johnson",
-                "age": 25,
-                "gender": "female",
-                "orientation": "straight",
-                "photo": "https://example.com/photo.jpg",
-                "hobbies": "Reading,Travel,Music",
-                "values": "Honesty,Kindness,Ambition",
-                "about_me": "I am a person who loves life...",
-                "lifestyle": "Healthy lifestyle...",
-                "future_goals": "Career Success,Happy Family",
-                "perfect_date": "Watch Movies Together,Dinner",
-                "green_flags": "Kind,Responsible",
-                "red_flags": "Dishonest,Irresponsible",
-                "physical_attraction_traits": "Smile,Eyes,Charisma",
-                "extroversion_score": 7
-            },
-            "match_score": {
-                "overall": 85,
-                "breakdown": {
-                    "basic_preference": 90,
-                    "age": 100,
-                    "location": 80,
-                    "interests": 75,
-                    "values": 85,
-                    "embedding": 80
-                }
-            }
-        }
-    ]
+  "success": true,
+  "message": "User match status updated successfully",
+  "user": {
+    "id": 1,
+    "name": "张三",
+    "match_status": "unavailable",
+    "status_updated_at": "2024-01-01T12:00:00.000Z"
+  },
+  "timestamp": "2024-01-01T12:00:00.000Z"
 }
 ```
 
-## Matching Algorithm Details
+### 3. 生成个人总结和约会建议
 
-### 1. Basic Preference Matching (30% weight)
+**POST** `/matching/generate-personal-summary`
 
-**Scoring Criteria:**
-- Gender preference matching: 40 points
-- Sexual orientation compatibility: 30 points
-- Dating intention matching: 30 points
+为两个用户生成个人总结和约会建议。
 
-**Calculation Logic:**
-```javascript
-// Check gender preferences
-if (user1.interested_in_genders.includes(user2.gender) && 
-    user2.interested_in_genders.includes(user1.gender)) {
-    score += 40;
-}
-
-// Check sexual orientation compatibility
-if (user1.orientation === user2.orientation || 
-    (user1.orientation === 'bisexual' || user2.orientation === 'bisexual')) {
-    score += 30;
-}
-
-// Check dating intentions
-const commonIntentions = user1.dating_intentions.filter(intention => 
-    user2.dating_intentions.includes(intention)
-);
-if (commonIntentions.length > 0) {
-    score += (commonIntentions.length / Math.max(user1.dating_intentions.length, user2.dating_intentions.length)) * 30;
+**请求体：**
+```json
+{
+  "user_id": 1,
+  "target_user_id": 2
 }
 ```
 
-### 2. Age Matching (15% weight)
+**响应：**
+```json
+{
+  "success": true,
+  "user_summary": "张三，25岁，阳光开朗的INTJ型男生，热爱运动和阅读，期待与你相遇！",
+  "dating_advice": "1. 建议选择咖啡厅或书店进行第一次见面\n2. 可以聊运动、阅读等共同话题\n3. 注意保持轻松愉快的氛围\n4. 建议周末下午见面",
+  "user_photos": [
+    {
+      "photo_url": "photo1.jpg",
+      "is_primary": true
+    }
+  ],
+  "target_user_photos": [
+    {
+      "photo_url": "photo2.jpg", 
+      "is_primary": true
+    }
+  ],
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
 
-**Scoring Criteria:**
-- Both ages within each other's preference range: 100 points
-- One age within the other's preference range: 50 points
-- Age difference ≤ 5 years: 30 points
-- Age difference ≤ 10 years: 20 points
-- Others: 10 points
+### 4. 获取可匹配用户列表
 
-### 3. Geographic Location Matching (10% weight)
+**GET** `/matching/available-users/:user_id?limit=20`
 
-**Scoring Criteria:**
-- Common preferred areas: calculated based on common area ratio
-- No common areas: 20 points
-- No area preferences: 50 points
+获取可匹配的用户列表，排除已匹配的用户。
 
-### 4. Interest and Hobby Matching (15% weight)
+**参数：**
+- `user_id`: 当前用户ID
+- `limit`: 返回结果数量限制（可选，默认20）
 
-**Scoring Criteria:**
-- Based on common interests ratio
-- Uses fuzzy matching (inclusion relationship)
+**响应：**
+```json
+{
+  "success": true,
+  "user_id": 1,
+  "available_users": [
+    {
+      "id": 3,
+      "name": "王五",
+      "age": 24,
+      "gender": "女",
+      "photo": "photo3.jpg",
+      "mbti": "ENFP"
+    }
+  ],
+  "count": 1
+}
+```
 
-### 5. Values Matching (15% weight)
+### 5. 获取匹配历史
 
-**Scoring Criteria:**
-- Based on common values ratio
-- Uses fuzzy matching (inclusion relationship)
+**GET** `/matching/match-history/:user_id`
 
-### 6. Embedding Similarity (15% weight)
+获取用户的匹配历史记录。
 
-**Scoring Criteria:**
-- Uses cosine similarity to calculate similarity between two users' embedding vectors
-- Converts similarity to 0-100 score
+**响应：**
+```json
+{
+  "success": true,
+  "user_id": 1,
+  "match_history": [
+    {
+      "id": "uuid",
+      "user1_id": 1,
+      "user2_id": 2,
+      "match_score": 85,
+      "is_bound": true,
+      "created_at": "2024-01-01T12:00:00.000Z",
+      "user1_name": "张三",
+      "user2_name": "李四",
+      "user1_photo": "photo1.jpg",
+      "user2_photo": "photo2.jpg"
+    }
+  ]
+}
+```
 
-## Match Analysis Report
+## 数据库结构
 
-The system uses OpenAI to generate detailed match analysis reports, including:
-
-1. **Overall Match Evaluation**: Comprehensive scoring and evaluation
-2. **Multi-dimensional Match Analysis**: Detailed analysis of each dimension's match situation
-3. **Potential Advantages and Challenges**: Analysis of match advantages and possible issues
-4. **Suggested Dating Activities**: Dating suggestions based on common interests
-5. **Match Recommendations**: Professional match advice and considerations
-
-## Database Table Structure
-
-### user_matches Table
+### 用户表 (users) 新增字段
 ```sql
-CREATE TABLE user_matches (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user1_id UUID NOT NULL,
-    user2_id UUID NOT NULL,
-    match_score INTEGER NOT NULL,
-    score_breakdown JSONB,
-    match_analysis TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(user1_id, user2_id)
-);
+ALTER TABLE users 
+ADD COLUMN match_status VARCHAR(20) DEFAULT 'available',
+ADD COLUMN status_updated_at TIMESTAMP DEFAULT NOW(),
+ADD COLUMN matched_at TIMESTAMP;
 ```
 
-## Usage Examples
+### 匹配记录表 (user_matches) 新增字段
+```sql
+ALTER TABLE user_matches 
+ADD COLUMN is_bound BOOLEAN DEFAULT false;
+```
 
-### JavaScript Example:
+## 错误处理
+
+所有API都会返回适当的HTTP状态码和错误信息：
+
+- `400 Bad Request`: 请求参数错误
+- `404 Not Found`: 用户不存在
+- `500 Internal Server Error`: 服务器内部错误
+
+**错误响应示例：**
+```json
+{
+  "error": "Missing required fields: user1_id, user2_id"
+}
+```
+
+## 使用示例
+
+### JavaScript 示例
 
 ```javascript
-// Match two users
-const matchResponse = await fetch('/match/match-two-users', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-        user1_id: 'user-123',
-        user2_id: 'user-456'
-    })
-});
+const axios = require('axios');
 
-const matchResult = await matchResponse.json();
-console.log(`Match score: ${matchResult.match_score.overall}/100`);
-console.log(`Analysis report: ${matchResult.match_analysis}`);
+// 绑定匹配用户
+async function bindMatchedUsers(user1Id, user2Id, matchScore) {
+  try {
+    const response = await axios.post('/matching/bind-matched-users', {
+      user1_id: user1Id,
+      user2_id: user2Id,
+      match_score: matchScore,
+      match_analysis: "这是一个很好的匹配！"
+    });
+    console.log('绑定成功:', response.data);
+  } catch (error) {
+    console.error('绑定失败:', error.response.data);
+  }
+}
 
-// Get user match history
-const historyResponse = await fetch('/match/user-matches/user-123');
-const history = await historyResponse.json();
-console.log(`Match history: ${history.matches.length} records`);
+// 更新用户状态
+async function updateUserStatus(userId, status) {
+  try {
+    const response = await axios.put('/matching/update-match-status', {
+      user_id: userId,
+      match_status: status
+    });
+    console.log('状态更新成功:', response.data);
+  } catch (error) {
+    console.error('状态更新失败:', error.response.data);
+  }
+}
 
-// Get best match recommendations
-const recommendationsResponse = await fetch('/match/best-matches/user-123?limit=5');
-const recommendations = await recommendationsResponse.json();
-console.log(`Recommended users: ${recommendations.matches.length}`);
-```
-
-### Python Example:
-
-```python
-import requests
-
-# Match two users
-response = requests.post('http://localhost:3000/match/match-two-users', json={
-    'user1_id': 'user-123',
-    'user2_id': 'user-456'
-})
-
-match_result = response.json()
-print(f"Match score: {match_result['match_score']['overall']}/100")
-
-# Get match history
-history_response = requests.get('http://localhost:3000/match/user-matches/user-123')
-history = history_response.json()
-print(f"Match history: {len(history['matches'])} records")
-
-# Get recommendations
-recommendations_response = requests.get('http://localhost:3000/match/best-matches/user-123?limit=5')
-recommendations = recommendations_response.json()
-print(f"Recommended users: {len(recommendations['matches'])}")
-```
-
-## Error Handling
-
-### Common Errors:
-
-1. **Missing Required Parameters**
-```json
-{
-    "error": "Missing required fields: user1_id, user2_id"
+// 生成个人总结和约会建议
+async function generateSummary(userId, targetUserId) {
+  try {
+    const response = await axios.post('/matching/generate-personal-summary', {
+      user_id: userId,
+      target_user_id: targetUserId
+    });
+    console.log('个人总结:', response.data.user_summary);
+    console.log('约会建议:', response.data.dating_advice);
+  } catch (error) {
+    console.error('生成失败:', error.response.data);
+  }
 }
 ```
 
-2. **User Not Found**
-```json
-{
-    "error": "One or both users not found"
-}
+## 注意事项
+
+1. **用户绑定后不可逆**: 一旦两个用户被绑定，他们将不再出现在其他匹配中
+2. **状态管理**: 用户可以随时更改自己的匹配状态
+3. **数据完整性**: 系统会自动维护匹配状态的一致性
+4. **性能优化**: 使用了数据库索引来提高查询性能
+
+## 测试
+
+运行测试文件来验证功能：
+
+```bash
+node test_matching_functions.js
 ```
 
-3. **Matching Self**
-```json
-{
-    "error": "Cannot match user with themselves"
-}
-```
-
-4. **Server Error**
-```json
-{
-    "error": "Internal server error"
-}
-```
-
-## Performance Optimization
-
-### 1. Database Optimization
-- Create indexes on user_id fields
-- Use connection pools to manage database connections
-- Batch queries to reduce database access times
-
-### 2. Embedding Calculation Optimization
-- Cache embedding calculation results
-- Asynchronous processing for large batch matching requests
-- Use vector databases for fast similarity calculations
-
-### 3. Recommendation Algorithm Optimization
-- Pre-calculate potential matching users
-- Use pagination to reduce data transmission
-- Implement intelligent caching mechanisms
-
-## Security Considerations
-
-### 1. Data Privacy
-- Users can only view their own match records
-- Sensitive information is encrypted during transmission and storage
-- Implement user authorization verification
-
-### 2. API Security
-- Input validation and sanitization
-- Prevent SQL injection attacks
-- Implement API rate limiting mechanisms
-
-### 3. Matching Algorithm Security
-- Ensure fairness of matching algorithms
-- Prevent malicious users from manipulating match results
-- Protect user privacy information
-
-## Extension Features
-
-### 1. Advanced Matching Options
-- Custom matching weights
-- Multi-dimensional filtering conditions
-- Real-time match status updates
-
-### 2. Match Quality Assessment
-- User feedback collection
-- Match success rate statistics
-- Algorithm effectiveness evaluation
-
-### 3. Social Features
-- Chat functionality after matching
-- Dating plan arrangements
-- Relationship status tracking
-
-## Important Notes
-
-1. **Data Integrity**: Ensure user data is complete, especially embedding data
-2. **Algorithm Fairness**: Matching algorithms should be fair to all users
-3. **Performance Monitoring**: Monitor API response times and system resource usage
-4. **User Feedback**: Collect user feedback on match results and continuously optimize algorithms
-5. **Privacy Protection**: Strictly comply with data privacy regulations
-
-## Environment Variables
-
-Ensure the following environment variables are properly configured:
-
-```env
-DATABASE_URL=postgresql://username:password@host:port/database
-OPENAI_API_KEY=your_openai_api_key
-PINECONE_API_KEY=your_pinecone_api_key
-PINECONE_INDEX_NAME=your_pinecone_index_name
-```
-
-This intelligent matching system provides powerful user matching functionality for your application, capable of comprehensive evaluation based on multiple dimensions and providing high-quality match recommendations for users. 
+这将测试所有主要功能和错误处理情况。 
