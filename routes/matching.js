@@ -687,7 +687,7 @@ router.get("/available-users/:user_id", async (req, res) => {
 
         // 获取可匹配的用户（排除已匹配的用户）
         const result = await pool.query(`
-            SELECT DISTINCT u.id, u.name, u.age, u.gender, u.photo, u.mbti
+            SELECT DISTINCT u.id, u.name, u.age, u.gender, u.photo, u.mbti, u.created_at
             FROM users u
             WHERE u.id != $1 
               AND u.form_submitted = true 
