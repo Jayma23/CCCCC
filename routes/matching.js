@@ -672,7 +672,7 @@ function calculatePersonalityScore(user1, user2) {
 // 8. 获取可匹配的用户列表（推荐5个最合适的用户）
 router.get("/available-users/:user_id", async (req, res) => {
     const { user_id } = req.params;
-    const { min_score = 50, recommendation_count = 5 } = req.query;
+    const { min_score = 0, recommendation_count = 5 } = req.query;
 
     if (!user_id) {
         return res.status(400).json({ error: "Missing user_id." });
