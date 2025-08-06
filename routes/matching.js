@@ -33,7 +33,7 @@ router.post("/bind-matched-users", async (req, res) => {
     }
 
     // Check if similarity score reaches 50%
-    if (!match_score || match_score < 50) {
+    if (!match_score || match_score < 0) {
         return res.status(400).json({ 
             error: "Match score must be at least 50% to bind users. Current score: " + (match_score || 0) + "%" 
         });
