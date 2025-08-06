@@ -15,7 +15,7 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// 1. 匹配成功后绑定两个用户，防止他们再出现在其他匹配中
+// 1. Bind matched users to prevent them from appearing in other matches
 router.post("/bind-matched-users", async (req, res) => {
     console.log('🔗 Binding matched users:', req.body);
     const { user1_id, user2_id, match_score, match_analysis } = req.body;
@@ -32,7 +32,7 @@ router.post("/bind-matched-users", async (req, res) => {
         });
     }
 
-    // 检查相似度是否达到50%
+    // Check if similarity score reaches 50%
     if (!match_score || match_score < 50) {
         return res.status(400).json({ 
             error: "Match score must be at least 50% to bind users. Current score: " + (match_score || 0) + "%" 
@@ -40,7 +40,7 @@ router.post("/bind-matched-users", async (req, res) => {
     }
 
     try {
-        // 检查用户是否已经匹配过
+        // Check if users are already matched
         const existingMatch = await pool.query(`
             SELECT * FROM user_matches 
             WHERE (user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1)
@@ -52,28 +52,40 @@ router.post("/bind-matched-users", async (req, res) => {
             });
         }
 
-        // 创建匹配绑定记录
+        // Create match binding record
         await pool.query(`
             INSERT INTO user_matches (user1_id, user2_id, match_score, match_analysis, is_bound)
             VALUES ($1, $2, $3, $4, true)
         `, [user1_id, user2_id, match_score, match_analysis || '']);
 
-        // 更新用户状态为已匹配
+        // Update user status to matched
         await pool.query(`
             UPDATE users 
             SET match_status = 'matched', matched_at = NOW()
             WHERE id IN ($1, $2)
         `, [user1_id, user2_id]);
 
-        // 获取用户信息用于通知
+        // Get user information for notification
         const user1Info = await pool.query('SELECT name, photo FROM users WHERE id = $1', [user1_id]);
         const user2Info = await pool.query('SELECT name, photo FROM users WHERE id = $1', [user2_id]);
+
+        // Generate personality summaries for both users
+        const user1Data = await getUserCompleteData(user1_id);
+        const user2Data = await getUserCompleteData(user2_id);
+        const user1Personality = user1Data ? await generatePersonalitySummary(user1Data) : '';
+        const user2Personality = user2Data ? await generatePersonalitySummary(user2Data) : '';
 
         res.json({
             success: true,
             message: "Users successfully bound together",
-            user1: user1Info.rows[0],
-            user2: user2Info.rows[0],
+            user1: {
+                ...user1Info.rows[0],
+                personality_summary: user1Personality
+            },
+            user2: {
+                ...user2Info.rows[0],
+                personality_summary: user2Personality
+            },
             match_score,
             timestamp: new Date().toISOString()
         });
@@ -151,6 +163,9 @@ router.post("/generate-personal-summary", async (req, res) => {
         // Generate personal summary
         const personalSummary = await generatePersonalSummary(userData);
         
+        // Generate personality summary
+        const personalitySummary = await generatePersonalitySummary(userData);
+        
         // Generate dating advice
         const datingAdvice = await generateDatingAdvice(userData, targetUserData);
 
@@ -161,6 +176,7 @@ router.post("/generate-personal-summary", async (req, res) => {
         res.json({
             success: true,
             user_summary: personalSummary,
+            personality_summary: personalitySummary,
             dating_advice: datingAdvice,
             user_photos: userPhotos,
             target_user_photos: targetUserPhotos,
@@ -352,7 +368,7 @@ Please answer in English with practical and specific advice.
     }
 }
 
-// 7. 获取用户照片
+// 7. Get user photos
 async function getUserPhotos(user_id) {
     try {
         const result = await pool.query(`
@@ -369,43 +385,88 @@ async function getUserPhotos(user_id) {
     }
 }
 
-// 计算匹配分数
+// 8. Generate personality summary
+async function generatePersonalitySummary(userData) {
+    try {
+        const prompt = `
+Generate a concise personality summary (under 60 words) for the following user, highlighting their key personality traits and characteristics:
+
+User Information:
+- Name: ${userData.name}
+- Age: ${userData.age} years old
+- Gender: ${userData.gender}
+- MBTI: ${userData.mbti || 'Unknown'}
+- Hobbies: ${userData.hobbies || 'None'}
+- Lifestyle: ${userData.lifestyle || 'Not specified'}
+- Values: ${userData.values || 'Not specified'}
+- About Me: ${userData.about_me || 'Not specified'}
+- Perfect Date: ${userData.perfect_date || 'Not specified'}
+- Extroversion Score: ${userData.extroversion_score || 'Not specified'}
+
+Please create an engaging personality summary that captures their unique character and what makes them special. Focus on their personality traits, interests, and what they're looking for in a relationship.
+        `;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a professional personality analyst, skilled at creating engaging and accurate personality summaries that highlight a person's unique characteristics and charm."
+                },
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ],
+            max_tokens: 120,
+            temperature: 0.7
+        });
+
+        return response.choices[0].message.content.trim();
+        
+    } catch (error) {
+        console.error('Error generating personality summary:', error);
+        return `${userData.name} is a ${userData.age}-year-old ${userData.gender} with a unique personality. They enjoy ${userData.hobbies || 'various activities'} and are looking for a meaningful connection.`;
+    }
+}
+
+// Calculate match score
 async function calculateMatchScore(user1, user2) {
     let totalScore = 0;
     let maxScore = 0;
     const scores = {};
 
-    // 1. 基本偏好匹配 (30%)
+    // 1. Basic preference matching (30%)
     const basicPreferenceScore = calculateBasicPreferenceScore(user1, user2);
     scores.basic_preference = basicPreferenceScore;
     totalScore += basicPreferenceScore * 0.3;
     maxScore += 100 * 0.3;
 
-    // 2. 年龄匹配 (15%)
+    // 2. Age matching (15%)
     const ageScore = calculateAgeScore(user1, user2);
     scores.age = ageScore;
     totalScore += ageScore * 0.15;
     maxScore += 100 * 0.15;
 
-    // 3. 位置匹配 (10%)
+    // 3. Location matching (10%)
     const locationScore = calculateLocationScore(user1, user2);
     scores.location = locationScore;
     totalScore += locationScore * 0.1;
     maxScore += 100 * 0.1;
 
-    // 4. 兴趣匹配 (15%)
+    // 4. Interests matching (15%)
     const interestsScore = calculateInterestsScore(user1, user2);
     scores.interests = interestsScore;
     totalScore += interestsScore * 0.15;
     maxScore += 100 * 0.15;
 
-    // 5. 价值观匹配 (15%)
+    // 5. Values matching (15%)
     const valuesScore = calculateValuesScore(user1, user2);
     scores.values = valuesScore;
     totalScore += valuesScore * 0.15;
     maxScore += 100 * 0.15;
 
-    // 6. 性格匹配 (15%)
+    // 6. Personality matching (15%)
     const personalityScore = calculatePersonalityScore(user1, user2);
     scores.personality = personalityScore;
     totalScore += personalityScore * 0.15;
@@ -420,26 +481,26 @@ async function calculateMatchScore(user1, user2) {
     };
 }
 
-// 计算基本偏好匹配分数
+// Calculate basic preference match score
 function calculateBasicPreferenceScore(user1, user2) {
     let score = 0;
     let totalChecks = 0;
 
-    // 检查性别偏好
+    // Check gender preferences
     if (user1.interested_in_genders && user1.interested_in_genders.includes(user2.gender) && 
         user2.interested_in_genders && user2.interested_in_genders.includes(user1.gender)) {
         score += 40;
     }
     totalChecks++;
 
-    // 检查性取向兼容性
-    if (user1.orientation === user2.orientation || 
-        (user1.orientation === 'bisexual' || user2.orientation === 'bisexual')) {
+    // Check sexual orientation compatibility with proper gender matching
+    const isCompatible = checkOrientationCompatibility(user1, user2);
+    if (isCompatible) {
         score += 30;
     }
     totalChecks++;
 
-    // 检查约会意图
+    // Check dating intentions
     if (user1.dating_intentions && user2.dating_intentions) {
         const commonIntentions = user1.dating_intentions.filter(intention => 
             user2.dating_intentions.includes(intention)
@@ -453,12 +514,51 @@ function calculateBasicPreferenceScore(user1, user2) {
     return Math.round(score);
 }
 
-// 计算年龄匹配分数
+// Check orientation compatibility with proper gender matching
+function checkOrientationCompatibility(user1, user2) {
+    const gender1 = user1.gender?.toLowerCase();
+    const gender2 = user2.gender?.toLowerCase();
+    const orientation1 = user1.orientation?.toLowerCase();
+    const orientation2 = user2.orientation?.toLowerCase();
+
+    // If either user is bisexual, they can match with anyone
+    if (orientation1 === 'bisexual' || orientation2 === 'bisexual') {
+        return true;
+    }
+
+    // For heterosexual matching (male-female or female-male)
+    if (orientation1 === 'heterosexual' && orientation2 === 'heterosexual') {
+        return (gender1 === 'male' && gender2 === 'female') || (gender1 === 'female' && gender2 === 'male');
+    }
+
+    // For homosexual matching (male-male or female-female)
+    if (orientation1 === 'homosexual' && orientation2 === 'homosexual') {
+        return gender1 === gender2;
+    }
+
+    // Mixed orientations - check if they can be compatible
+    if (orientation1 === 'heterosexual' && orientation2 === 'homosexual') {
+        return false; // Heterosexual and homosexual are not compatible
+    }
+
+    if (orientation1 === 'homosexual' && orientation2 === 'heterosexual') {
+        return false; // Homosexual and heterosexual are not compatible
+    }
+
+    // If orientations are the same but not specified above, allow the match
+    if (orientation1 === orientation2) {
+        return true;
+    }
+
+    return false;
+}
+
+// Calculate age match score
 function calculateAgeScore(user1, user2) {
     const age1 = user1.age;
     const age2 = user2.age;
     
-    // 检查年龄是否在对方的偏好范围内
+    // Check if age is within the other person's preference range
     const age1InRange = age1 >= user2.age_range[0] && age1 <= user2.age_range[1];
     const age2InRange = age2 >= user1.age_range[0] && age2 <= user1.age_range[1];
     
@@ -474,13 +574,13 @@ function calculateAgeScore(user1, user2) {
     }
 }
 
-// 计算位置匹配分数
+// Calculate location match score
 function calculateLocationScore(user1, user2) {
     const areas1 = user1.preferred_areas || [];
     const areas2 = user2.preferred_areas || [];
     
     if (areas1.length === 0 || areas2.length === 0) {
-        return 50; // 如果没有偏好地区，给中等分数
+        return 50; // Medium score if no preferred areas
     }
     
     const commonAreas = areas1.filter(area => areas2.includes(area));
@@ -488,10 +588,10 @@ function calculateLocationScore(user1, user2) {
         return Math.round((commonAreas.length / Math.max(areas1.length, areas2.length)) * 100);
     }
     
-    return 20; // 没有共同地区
+    return 20; // No common areas
 }
 
-// 计算兴趣匹配分数
+// Calculate interests match score
 function calculateInterestsScore(user1, user2) {
     const hobbies1 = user1.hobbies ? user1.hobbies.split(',').map(h => h.trim()) : [];
     const hobbies2 = user2.hobbies ? user2.hobbies.split(',').map(h => h.trim()) : [];
@@ -508,7 +608,7 @@ function calculateInterestsScore(user1, user2) {
     return Math.round((commonHobbies.length / Math.max(hobbies1.length, hobbies2.length)) * 100);
 }
 
-// 计算价值观匹配分数
+// Calculate values match score
 function calculateValuesScore(user1, user2) {
     const values1 = user1.values ? user1.values.split(',').map(v => v.trim()) : [];
     const values2 = user2.values ? user2.values.split(',').map(v => v.trim()) : [];
@@ -525,31 +625,31 @@ function calculateValuesScore(user1, user2) {
     return Math.round((commonValues.length / Math.max(values1.length, values2.length)) * 100);
 }
 
-// 计算性格匹配分数
+// Calculate personality match score
 function calculatePersonalityScore(user1, user2) {
     let score = 0;
     
-    // MBTI匹配
+    // MBTI matching
     if (user1.mbti && user2.mbti) {
         const mbti1 = user1.mbti.toUpperCase();
         const mbti2 = user2.mbti.toUpperCase();
         
-        // 完全匹配
+        // Perfect match
         if (mbti1 === mbti2) {
             score += 40;
         }
-        // 部分匹配（前两个字母相同）
+        // Partial match (first two letters same)
         else if (mbti1.substring(0, 2) === mbti2.substring(0, 2)) {
             score += 25;
         }
-        // 兼容性匹配
+        // Compatibility match
         else if ((mbti1.includes('E') && mbti2.includes('I')) || 
                  (mbti1.includes('I') && mbti2.includes('E'))) {
             score += 20;
         }
     }
     
-    // 外向性分数匹配
+    // Extroversion score matching
     if (user1.extroversion_score && user2.extroversion_score) {
         const extroDiff = Math.abs(user1.extroversion_score - user2.extroversion_score);
         if (extroDiff <= 2) score += 30;
@@ -557,7 +657,7 @@ function calculatePersonalityScore(user1, user2) {
         else score += 10;
     }
     
-    // 生活方式匹配
+    // Lifestyle matching
     if (user1.lifestyle && user2.lifestyle) {
         const lifestyle1 = user1.lifestyle.toLowerCase();
         const lifestyle2 = user2.lifestyle.toLowerCase();
@@ -569,10 +669,10 @@ function calculatePersonalityScore(user1, user2) {
     return Math.min(score, 100);
 }
 
-// 8. 获取可匹配的用户列表（排除已匹配的用户，只显示相似度>=50%的用户）
+// 8. 获取可匹配的用户列表（推荐5个最合适的用户）
 router.get("/available-users/:user_id", async (req, res) => {
     const { user_id } = req.params;
-    const { limit = 20, min_score = 50 } = req.query;
+    const { min_score = 50, recommendation_count = 5 } = req.query;
 
     if (!user_id) {
         return res.status(400).json({ error: "Missing user_id." });
@@ -611,34 +711,44 @@ router.get("/available-users/:user_id", async (req, res) => {
                   )
               )
             ORDER BY u.created_at DESC
-            LIMIT $2
-        `, [user_id, limit]);
+            LIMIT 50
+        `, [user_id]);
 
-        // 计算每个用户的相似度并过滤
+        // Calculate match scores and filter by minimum score with orientation compatibility check
         const availableUsersWithScore = [];
         for (const user of result.rows) {
             const potentialUserData = await getUserCompleteData(user.id);
             if (potentialUserData) {
-                const matchScore = await calculateMatchScore(currentUser, potentialUserData);
-                if (matchScore.overall >= min_score) {
-                    availableUsersWithScore.push({
-                        ...user,
-                        match_score: matchScore.overall,
-                        score_breakdown: matchScore.breakdown
-                    });
+                // Check orientation compatibility first
+                if (checkOrientationCompatibility(currentUser, potentialUserData)) {
+                    const matchScore = await calculateMatchScore(currentUser, potentialUserData);
+                    if (matchScore.overall >= min_score) {
+                        // Generate personality summary for the recommended user
+                        const personalitySummary = await generatePersonalitySummary(potentialUserData);
+                        
+                        availableUsersWithScore.push({
+                            ...user,
+                            match_score: matchScore.overall,
+                            score_breakdown: matchScore.breakdown,
+                            personality_summary: personalitySummary
+                        });
+                    }
                 }
             }
         }
 
-        // 按相似度排序
+        // 按相似度排序并取前5个
         availableUsersWithScore.sort((a, b) => b.match_score - a.match_score);
+        const topRecommendations = availableUsersWithScore.slice(0, recommendation_count);
 
         res.json({
             success: true,
             user_id,
-            available_users: availableUsersWithScore.slice(0, limit),
-            count: availableUsersWithScore.length,
-            min_score_threshold: min_score
+            recommendations: topRecommendations,
+            total_available: availableUsersWithScore.length,
+            recommendation_count: topRecommendations.length,
+            min_score_threshold: min_score,
+            message: `为您推荐了${topRecommendations.length}个最合适的用户`
         });
 
     } catch (error) {
@@ -794,6 +904,101 @@ router.post("/check-compatibility", async (req, res) => {
 
     } catch (error) {
         console.error('❌ Error checking compatibility:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 12. 获取推荐用户（专门用于推荐功能）
+router.get("/recommendations/:user_id", async (req, res) => {
+    const { user_id } = req.params;
+    const { count = 5, min_score = 50 } = req.query;
+
+    if (!user_id) {
+        return res.status(400).json({ error: "Missing user_id." });
+    }
+
+    try {
+        // 获取当前用户信息
+        const currentUser = await getUserCompleteData(user_id);
+        if (!currentUser) {
+            return res.status(404).json({ error: "User not found." });
+        }
+
+        // 获取可匹配的用户（排除已匹配的用户）
+        const result = await pool.query(`
+            SELECT DISTINCT u.id, u.name, u.age, u.gender, u.photo, u.mbti
+            FROM users u
+            WHERE u.id != $1 
+              AND u.form_submitted = true 
+              AND u.match_status = 'available'
+              AND u.id NOT IN (
+                  SELECT DISTINCT user1_id FROM user_matches WHERE user2_id = $1
+                  UNION
+                  SELECT DISTINCT user2_id FROM user_matches WHERE user1_id = $1
+              )
+              AND u.id NOT IN (
+                  SELECT DISTINCT user1_id FROM user_matches WHERE user2_id IN (
+                      SELECT user1_id FROM user_matches WHERE user2_id = $1
+                      UNION
+                      SELECT user2_id FROM user_matches WHERE user1_id = $1
+                  )
+                  UNION
+                  SELECT DISTINCT user2_id FROM user_matches WHERE user1_id IN (
+                      SELECT user1_id FROM user_matches WHERE user2_id = $1
+                      UNION
+                      SELECT user2_id FROM user_matches WHERE user1_id = $1
+                  )
+              )
+            ORDER BY u.created_at DESC
+            LIMIT 100
+        `, [user_id]);
+
+        // Calculate match scores and filter by minimum score with orientation compatibility check
+        const allCompatibleUsers = [];
+        for (const user of result.rows) {
+            const potentialUserData = await getUserCompleteData(user.id);
+            if (potentialUserData) {
+                // Check orientation compatibility first
+                if (checkOrientationCompatibility(currentUser, potentialUserData)) {
+                    const matchScore = await calculateMatchScore(currentUser, potentialUserData);
+                    if (matchScore.overall >= min_score) {
+                        // Generate personality summary for the recommended user
+                        const personalitySummary = await generatePersonalitySummary(potentialUserData);
+                        
+                        allCompatibleUsers.push({
+                            ...user,
+                            match_score: matchScore.overall,
+                            score_breakdown: matchScore.breakdown,
+                            personality_summary: personalitySummary
+                        });
+                    }
+                }
+            }
+        }
+
+        // 按相似度排序并取前N个推荐
+        allCompatibleUsers.sort((a, b) => b.match_score - a.match_score);
+        const recommendations = allCompatibleUsers.slice(0, count);
+
+        res.json({
+            success: true,
+            user_id,
+            recommendations: recommendations,
+            total_compatible: allCompatibleUsers.length,
+            recommendation_count: recommendations.length,
+            min_score_threshold: min_score,
+            message: `为您推荐了${recommendations.length}个最合适的用户`,
+            recommendation_summary: {
+                highest_score: recommendations.length > 0 ? recommendations[0].match_score : 0,
+                average_score: recommendations.length > 0 ? 
+                    Math.round(recommendations.reduce((sum, user) => sum + user.match_score, 0) / recommendations.length) : 0,
+                score_range: recommendations.length > 0 ? 
+                    `${recommendations[recommendations.length - 1].match_score}% - ${recommendations[0].match_score}%` : "无推荐"
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error getting recommendations:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
