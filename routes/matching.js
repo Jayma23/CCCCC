@@ -95,6 +95,65 @@ router.post("/bind-matched-users", async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+router.get("/get_their_and_my_info/:user_id", async (req, res) => {
+    console.log('🔄 Fetching both users:', req.params);
+    const { user_id } = req.params;
+
+    if (!user_id) {
+        return res.status(400).json({ error: "Missing required field: user_id" });
+    }
+
+    try {
+        // 找到这个用户所在的一条匹配记录
+        const result = await pool.query(`
+            SELECT
+                m.user1_id,
+                m.user2_id,
+                u1.name AS user1_name,
+                u1.photo AS user1_photo,
+                u2.name AS user2_name,
+                u2.photo AS user2_photo
+            FROM user_matches m
+                     JOIN users u1 ON m.user1_id = u1.id
+                     JOIN users u2 ON m.user2_id = u2.id
+            WHERE $1 IN (m.user1_id, m.user2_id)
+                LIMIT 1;
+        `, [user_id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Match not found" });
+        }
+
+        const row = result.rows[0];
+
+        // 判断当前用户是 user1 还是 user2
+        const isUser1 = row.user1_id === user_id;
+
+        // 构造返回对象
+        const myInfo = {
+            user_id: isUser1 ? row.user1_id : row.user2_id,
+            name: isUser1 ? row.user1_name : row.user2_name,
+            photo: isUser1 ? row.user1_photo : row.user2_photo,
+        };
+
+        const theirInfo = {
+            user_id: isUser1 ? row.user2_id : row.user1_id,
+            name: isUser1 ? row.user2_name : row.user1_name,
+            photo: isUser1 ? row.user2_photo : row.user1_photo,
+        };
+
+        return res.json({
+            success: true,
+            myInfo,
+            theirInfo
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching match info:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 
 // 2. Update user match status (available/unavailable/matched)
 router.put("/update-match-status", async (req, res) => {
