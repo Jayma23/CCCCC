@@ -326,9 +326,9 @@ async function calculateEmbeddingScore(user1_id, user2_id) {
         // Get embeddings from Pinecone
         const result1 = await pineconeIndex.fetch([`user_${user1_id}`]);
         const result2 = await pineconeIndex.fetch([`user_${user2_id}`]);
-        
-        const embedding1 = result1.vectors[`user_${user1_id}`];
-        const embedding2 = result2.vectors[`user_${user2_id}`];
+
+        const embedding1 = result1.vectors.find(v => v.id === `user_${user1_id}`);
+        const embedding2 = result2.vectors.find(v => v.id === `user_${user2_id}`);
         
         if (!embedding1 || !embedding2) {
             return 50; // Medium score if no embeddings
